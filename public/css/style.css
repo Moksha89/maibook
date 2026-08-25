@@ -1,0 +1,252 @@
+.book-logo {
+    text-align: center;
+}
+section.book-logo-login-sec {
+    padding-top: 2%;
+    padding-bottom: 2%;
+}
+.login-form-section .row {
+    width: 40%;
+    margin: auto;
+}
+section.login-form-section {
+    padding-bottom: 40px;
+    padding-top: 10px;
+}
+.login-div {
+    box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+    padding: 50px 25px;
+    border-radius: 20px;
+}
+.login-div h3.title {
+    font-size: 42px;
+    color: #000;
+}
+.login-div p {
+    font-size: 18px;
+    color: #706868;
+    font-weight: 400;
+}
+.login-div input#exampleInputEmail1 {
+    border-radius: 40px;
+    padding: 16px 15px;
+    border: 2px solid #6f4e4e;
+    margin-bottom: 20px;
+}
+.login-div input#exampleInputPassword1{
+    border-radius: 40px;
+    padding: 16px 15px;
+    border: 2px solid #6f4e4e;
+    margin-bottom: 20px;
+}
+.submit-btn {
+    text-align: center;
+}
+.submit-btn button.btn.btn-primary {
+    background: #FFC107;
+    border: #FFC107;
+    width: 30%;
+    border-radius: 30px;
+    padding: 10px 0px;
+    box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+}
+.submit-btn button.btn.btn-primary:active {
+    background: #FFC107;
+}
+.forgot-pass {
+    text-align: center;
+    margin-top: 20px;
+}
+.forgot-pass a {
+    font-size: 18px;
+    color: #706868;
+    text-decoration: none;
+    font-weight: 400;
+}
+.forgot-pass span {
+    color: #007c00;
+    font-weight: 600;
+}
+.login-div input#exampleInputEmail1:focus {
+    outline: none;
+    box-shadow: none;
+}
+.login-div input#exampleInputPassword1{
+    outline: none;
+    box-shadow: none;
+}
+.login-div .form-group {
+    position: relative;
+}
+
+
+
+.form-group {
+    position: relative;
+    margin-bottom: 1.5rem;
+}
+
+.floating-label {
+    position: absolute;
+    left: 25px;
+    top: 30%;
+    transform: translateY(-5%);
+    transition: all 0.2s ease;
+    color: #666;
+    pointer-events: none;
+    background: #FFF;
+    font-size: 18px;
+    font-weight: 600;
+    padding: 0px 2px;
+}
+.form-control {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    border: 2px solid #795548;
+    border-radius: 50px;
+    outline: none;
+}
+
+.form-control:focus ~ .floating-label,
+.form-control:not(:placeholder-shown) ~ .floating-label {
+    top: -10px;
+    left: 10px;
+    font-size: 0.85rem;
+    color: #706868;
+}
+.form-control:focus {
+    box-shadow: none;
+}
+#togglePassword {
+    cursor: pointer;
+}
+
+.form-control:focus {
+    border-color: #ffbb00 !important;
+}
+
+.form-group input[type="password"] {
+    padding-right: 35px;
+}
+th{
+    padding: 4px !important;
+}
+td {
+    padding: 0px !important;
+}
+
+/* Mobile: up to 479px */
+@media (max-width: 479px) {
+    .login-form-section .row {
+        width: 95% !important;
+        margin: auto;
+    }
+    .login-div h3.title {
+        font-size: 28px;
+        color: #000;
+    }
+    .login-div {
+        padding: 25px 20px !important;
+    }
+    .login-div p {
+        font-size: 15px;
+        line-height: normal !important;
+    }
+    .login-div input#exampleInputEmail1 {
+        padding: 10px 15px !important;
+    }
+    .floating-label {
+        font-size: 14px;
+    }
+    .login-div input#exampleInputPassword1 {
+        padding: 10px 15px !important;
+    }
+    .submit-btn button.btn.btn-primary {
+        width: 100% !important;
+    }
+    .forgot-pass a {
+        font-size: 14px;
+    }
+    .book-logo h2 {
+        font-size: 24px;
+    }
+}
+
+/* Small tablets: 480px - 767px */
+@media (min-width: 480px) and (max-width: 767px) {
+    .login-form-section .row {
+        width: 85% !important;
+        margin: auto;
+    }
+    .login-div h3.title {
+        font-size: 32px;
+        color: #000;
+    }
+    .login-div {
+        padding: 30px 25px !important;
+    }
+    .login-div p {
+        line-height: normal !important;
+    }
+    .login-div input#exampleInputEmail1 {
+        padding: 10px 15px !important;
+    }
+    .floating-label {
+        font-size: 15px;
+    }
+    .login-div input#exampleInputPassword1 {
+        padding: 10px 15px !important;
+    }
+    .submit-btn button.btn.btn-primary {
+        width: 60% !important;
+    }
+    .forgot-pass a {
+        font-size: 16px;
+    }
+}
+
+/* Tablets: 768px - 999px */
+@media (min-width: 768px) and (max-width: 999px) {
+    .login-form-section .row {
+        width: 70%;
+        margin: auto;
+    }
+    .login-div {
+        padding: 30px 25px;
+    }
+    .login-div h3.title {
+        font-size: 32px;
+        color: #000;
+    }
+    .login-div input#exampleInputEmail1 {
+        padding: 10px 15px;
+    }
+    .login-div input#exampleInputPassword1 {
+        padding: 10px 15px;
+    }
+    .floating-label {
+        position: absolute;
+        left: 25px;
+        top: 22%;
+        transform: translateY(-5%);
+        transition: all 0.2s ease;
+        color: #666;
+        pointer-events: none;
+        background: #FFF;
+        font-size: 18px;
+        font-weight: 600;
+        padding: 0px 2px;
+    }
+    .submit-btn button.btn.btn-primary {
+        width: 50%;
+    }
+}
+
+/* Small desktops: 1000px - 1199px */
+@media (min-width: 1000px) and (max-width: 1199px) {
+    .login-form-section .row {
+        width: 50%;
+        margin: auto;
+    }
+}

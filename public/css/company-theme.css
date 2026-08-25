@@ -1,0 +1,1005 @@
+/* ===================================================
+   MiBook Company-Facing Theme
+   Premium styling for company/partner pages
+   =================================================== */
+
+/* --- CSS Custom Properties --- */
+:root {
+    --company-primary: #e8652e;
+    --company-primary-light: #ff8a5c;
+    --company-secondary: #FFC107;
+    --company-secondary-light: #fff3cd;
+    --company-bg: #f8f9fc;
+    --company-card-bg: #ffffff;
+    --company-text: #2d3748;
+    --company-text-muted: #718096;
+    --company-border: #e2e8f0;
+    --company-shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+    --company-shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+    --company-shadow-lg: 0 10px 30px rgba(0,0,0,0.12);
+    --company-radius-sm: 8px;
+    --company-radius-md: 12px;
+    --company-radius-lg: 16px;
+    --company-transition: all 0.2s ease;
+}
+
+/* --- Body & Layout --- */
+body {
+    background: var(--company-bg) !important;
+    color: var(--company-text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    min-height: 100vh;
+}
+
+/* --- Header / Navbar --- */
+header.menu-head-sec {
+    background: var(--company-card-bg) !important;
+    box-shadow: var(--company-shadow-md) !important;
+    border-bottom: none !important;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.navbar-sec nav.navbar.navbar-dark.bg-dark.fixed-top.back-new {
+    background: var(--company-card-bg) !important;
+    padding: 10px 20px !important;
+    border-radius: 0;
+}
+
+.navbar-sec a.navbar-brand {
+    color: var(--company-text) !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+
+.navbar-sec a.navbar-brand img {
+    height: 36px !important;
+    width: 36px !important;
+    object-fit: contain;
+}
+
+/* Navigation links */
+.menu-head-sec a {
+    padding: 8px 16px !important;
+    color: var(--company-text) !important;
+    text-decoration: none !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    border-radius: var(--company-radius-sm) !important;
+    transition: var(--company-transition) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.menu-head-sec a:hover {
+    background: var(--company-primary) !important;
+    color: #fff !important;
+    transform: translateY(-1px);
+}
+
+.menu-head-sec a.active-tab,
+.menu-head-sec a[style*="border"] {
+    background: var(--company-primary) !important;
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(232, 101, 46, 0.3);
+}
+
+/* Logout button area */
+.logout-btn {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+.logout-btn a {
+    color: var(--company-text) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+
+/* Settings gear button */
+.gear-sett button.btn.btn-primary.gear {
+    background: var(--company-primary) !important;
+    border-color: var(--company-primary) !important;
+    padding: 8px 10px !important;
+    border-radius: 50% !important;
+    transition: var(--company-transition) !important;
+    box-shadow: var(--company-shadow-sm);
+}
+
+.gear-sett button.btn.btn-primary.gear:hover {
+    transform: scale(1.1);
+    box-shadow: var(--company-shadow-md);
+}
+
+/* --- Page Sections --- */
+section.overview-sec {
+    padding: 20px 24px !important;
+    border-bottom: none !important;
+    background: var(--company-card-bg);
+    margin: 20px;
+    border-radius: var(--company-radius-md);
+    box-shadow: var(--company-shadow-sm);
+}
+
+section.add-user-sec {
+    padding: 20px 24px !important;
+    background: var(--company-card-bg);
+    margin: 0 20px 20px 20px;
+    border-radius: var(--company-radius-md);
+    box-shadow: var(--company-shadow-sm);
+}
+
+/* --- Buttons --- */
+.modal-company .add-company,
+button.btn.btn-primary.add-company {
+    background: var(--company-primary) !important;
+    border-color: var(--company-primary) !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    border-radius: var(--company-radius-sm) !important;
+    box-shadow: 0 2px 8px rgba(232, 101, 46, 0.3) !important;
+    transition: var(--company-transition) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.modal-company .add-company:hover,
+button.btn.btn-primary.add-company:hover {
+    background: var(--company-primary-light) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(232, 101, 46, 0.4) !important;
+}
+
+.modal-company .inactive-comp {
+    background: var(--company-text) !important;
+    border-color: var(--company-text) !important;
+    border-radius: 50% !important;
+    padding: 10px 12px !important;
+    transition: var(--company-transition) !important;
+    box-shadow: var(--company-shadow-sm) !important;
+}
+
+.modal-company .inactive-comp:hover {
+    background: #4a5568 !important;
+    transform: scale(1.05);
+}
+
+/* --- Tables --- */
+.data-table-new {
+    background: var(--company-card-bg);
+    border-radius: var(--company-radius-md) !important;
+    overflow: hidden;
+    box-shadow: var(--company-shadow-sm);
+    padding: 16px;
+    margin-top: 16px;
+}
+
+.data-table-new th {
+    background: var(--company-bg) !important;
+    color: var(--company-text) !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    padding: 12px 16px !important;
+    border: none !important;
+    border-bottom: 2px solid var(--company-border) !important;
+    border-radius: 0 !important;
+}
+
+.data-table-new th:first-child {
+    border-radius: var(--company-radius-sm) 0 0 0 !important;
+}
+
+.data-table-new th:last-child {
+    border-radius: 0 var(--company-radius-sm) 0 0 !important;
+}
+
+.data-table-new td {
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    color: var(--company-text) !important;
+    border-bottom: 1px solid var(--company-border) !important;
+    vertical-align: middle !important;
+}
+
+.data-table-new tr:hover td {
+    background: var(--company-bg) !important;
+}
+
+.data-table-new tr.odd td {
+    background: transparent !important;
+}
+
+.data-table-new tr.even td {
+    background: rgba(248, 249, 252, 0.5) !important;
+}
+
+/* Table borders */
+table#partners_table,
+.data-table-new table {
+    border: none !important;
+    border-radius: var(--company-radius-sm) !important;
+    overflow: hidden;
+    width: 100% !important;
+}
+
+/* DataTables info and pagination */
+.data-table-new div#example_info,
+.data-table-new div[id$="_info"] {
+    border: none !important;
+    padding: 12px 0 !important;
+    font-size: 13px;
+    color: var(--company-text-muted);
+}
+
+.data-table-new div#example_paginate,
+.data-table-new div[id$="_paginate"] {
+    border: none !important;
+    padding: 12px 0 !important;
+}
+
+.data-table-new li.paginate_button.page-item.active a {
+    background: var(--company-primary) !important;
+    border-color: var(--company-primary) !important;
+    border-radius: var(--company-radius-sm) !important;
+    color: #fff !important;
+}
+
+.data-table-new .page-link {
+    border: none !important;
+    color: var(--company-text) !important;
+    border-radius: var(--company-radius-sm) !important;
+    padding: 6px 12px !important;
+}
+
+.data-table-new .page-link:hover {
+    background: var(--company-bg) !important;
+}
+
+/* Action buttons in tables */
+td.btn-action {
+    display: flex !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    align-items: center !important;
+}
+
+.btn-action .gear {
+    background: var(--company-secondary) !important;
+    border-color: var(--company-secondary) !important;
+    border-radius: var(--company-radius-sm) !important;
+    padding: 6px 10px !important;
+    transition: var(--company-transition) !important;
+}
+
+.btn-action .gear:hover {
+    transform: scale(1.05);
+    box-shadow: var(--company-shadow-sm);
+}
+
+.btn-action .cross {
+    background: #e53e3e !important;
+    border-color: #e53e3e !important;
+    border-radius: var(--company-radius-sm) !important;
+    padding: 6px 10px !important;
+    transition: var(--company-transition) !important;
+}
+
+.btn-action .cross:hover {
+    background: #c53030 !important;
+    transform: scale(1.05);
+}
+
+/* --- Modals --- */
+.modal-content {
+    border: none !important;
+    border-radius: var(--company-radius-lg) !important;
+    box-shadow: var(--company-shadow-lg) !important;
+    overflow: hidden;
+}
+
+.modal-header {
+    padding: 20px 24px !important;
+    border-bottom: 1px solid var(--company-border) !important;
+    background: var(--company-bg);
+}
+
+.modal-header h1,
+.modal-header h5,
+.modal-company-header h1 {
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    color: var(--company-text) !important;
+    margin: 0 !important;
+}
+
+.modal-body {
+    padding: 24px !important;
+}
+
+.modal-body.modal-company-body {
+    padding: 24px !important;
+}
+
+.modal-footer {
+    padding: 16px 24px !important;
+    border-top: 1px solid var(--company-border) !important;
+    background: var(--company-bg);
+}
+
+/* Modal form inputs */
+.login-div {
+    box-shadow: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+}
+
+.modal-company .login-div {
+    padding: 0 !important;
+}
+
+.modal-company .login-div .form-group,
+.login-div .form-group {
+    position: relative;
+    margin-bottom: 20px !important;
+}
+
+.modal-company .login-div input#exampleInputEmail1,
+.login-div input[type="text"],
+.login-div input[type="email"],
+.login-div input[type="password"],
+.setting-div input#exampleInputEmail1 {
+    border-radius: var(--company-radius-sm) !important;
+    padding: 14px 16px !important;
+    border: 2px solid var(--company-border) !important;
+    font-size: 14px !important;
+    width: 100% !important;
+    transition: var(--company-transition) !important;
+    background: var(--company-card-bg) !important;
+}
+
+.modal-company .login-div input:focus,
+.login-div input:focus,
+.setting-div input:focus {
+    border-color: var(--company-primary) !important;
+    box-shadow: 0 0 0 3px rgba(232, 101, 46, 0.1) !important;
+    outline: none !important;
+}
+
+/* Floating labels in modals */
+.modal-company .floating-label,
+.login-div label.floating-label {
+    position: absolute !important;
+    left: 16px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: var(--company-text-muted) !important;
+    background: var(--company-card-bg) !important;
+    padding: 0 6px !important;
+    pointer-events: none !important;
+    transition: var(--company-transition) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.login-div input:focus ~ .floating-label,
+.login-div input:not(:placeholder-shown) ~ .floating-label {
+    top: 0 !important;
+    font-size: 12px !important;
+    color: var(--company-primary) !important;
+}
+
+/* Modal buttons */
+.add-company-footer .Cancel-btn,
+.modal-footer .btn-secondary {
+    background: var(--company-bg) !important;
+    border: 2px solid var(--company-border) !important;
+    color: var(--company-text) !important;
+    font-weight: 600 !important;
+    padding: 10px 24px !important;
+    border-radius: var(--company-radius-sm) !important;
+    transition: var(--company-transition) !important;
+}
+
+.add-company-footer .Cancel-btn:hover,
+.modal-footer .btn-secondary:hover {
+    background: var(--company-border) !important;
+}
+
+.add-company-footer .Create-btn,
+.modal-footer .btn-primary {
+    background: var(--company-primary) !important;
+    border-color: var(--company-primary) !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    padding: 10px 24px !important;
+    border-radius: var(--company-radius-sm) !important;
+    box-shadow: 0 2px 8px rgba(232, 101, 46, 0.3) !important;
+    transition: var(--company-transition) !important;
+}
+
+.add-company-footer .Create-btn:hover,
+.modal-footer .btn-primary:hover {
+    background: var(--company-primary-light) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(232, 101, 46, 0.4) !important;
+}
+
+/* Inactive modal */
+.inactive-mod-footer button.btn.btn-primary {
+    background: #e53e3e !important;
+    border-color: #e53e3e !important;
+    border-radius: var(--company-radius-sm) !important;
+}
+
+/* Company table in inactive modal */
+.company-table .modal-body {
+    width: 95% !important;
+    margin: auto;
+    padding: 16px 0 !important;
+}
+
+.company-table-footer button.btn.btn-secondary {
+    background: var(--company-primary) !important;
+    border-color: var(--company-primary) !important;
+    color: #fff !important;
+    border-radius: var(--company-radius-sm) !important;
+    box-shadow: var(--company-shadow-sm) !important;
+}
+
+/* --- Report Modal --- */
+.report-mod-full .modal-dialog {
+    max-width: 95% !important;
+    border-radius: var(--company-radius-lg);
+}
+
+.report-mod-full .modal-header {
+    background: var(--company-bg) !important;
+    border-bottom: 1px solid var(--company-border) !important;
+    padding: 20px 24px !important;
+}
+
+.modal-body.report-body {
+    display: flex !important;
+    gap: 16px !important;
+    padding: 24px !important;
+    height: auto !important;
+    min-height: 300px;
+}
+
+.report-body .col-sm-6 {
+    flex: 1 !important;
+    width: auto !important;
+}
+
+.report-body table {
+    width: 100% !important;
+    border-collapse: collapse;
+}
+
+.report-body th {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    padding: 10px 12px !important;
+    background: var(--company-bg);
+    border-bottom: 2px solid var(--company-border);
+}
+
+.report-body td {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    border-bottom: 1px solid var(--company-border);
+}
+
+.report-footer .print {
+    background: var(--company-primary) !important;
+    border-color: var(--company-primary) !important;
+    border-radius: var(--company-radius-sm) !important;
+    font-weight: 600 !important;
+    box-shadow: var(--company-shadow-sm) !important;
+}
+
+.report-footer .close {
+    background: var(--company-bg) !important;
+    border: 2px solid var(--company-border) !important;
+    color: var(--company-text) !important;
+    border-radius: var(--company-radius-sm) !important;
+    font-weight: 600 !important;
+}
+
+/* --- Search Bar --- */
+.custom-search-bar {
+    background: var(--company-card-bg) !important;
+    border: 2px solid var(--company-border) !important;
+    border-radius: var(--company-radius-sm) !important;
+    padding: 8px 14px !important;
+    transition: var(--company-transition) !important;
+}
+
+.custom-search-bar:focus-within {
+    border-color: var(--company-primary) !important;
+    box-shadow: 0 0 0 3px rgba(232, 101, 46, 0.1) !important;
+}
+
+.custom-search-bar input {
+    font-size: 14px !important;
+    color: var(--company-text) !important;
+}
+
+.custom-search-bar input::placeholder {
+    color: var(--company-text-muted) !important;
+}
+
+/* --- Entries Header --- */
+.entries {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 12px 0 !important;
+    margin-bottom: 8px;
+}
+
+.entries p {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: var(--company-primary) !important;
+    margin: 0 !important;
+}
+
+.entries p.clossing {
+    color: var(--company-text) !important;
+    font-weight: 500 !important;
+    font-size: 14px !important;
+}
+
+.entries p.clossing span,
+.clossing span {
+    color: var(--company-primary) !important;
+    font-weight: 700 !important;
+}
+
+/* --- Custom Table (company-info settling) --- */
+.custom-table {
+    width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    border-radius: var(--company-radius-md) !important;
+    overflow: hidden;
+    box-shadow: var(--company-shadow-sm);
+}
+
+.custom-table th {
+    background: var(--company-bg) !important;
+    color: var(--company-text) !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    padding: 12px 14px !important;
+    border: none !important;
+    border-bottom: 2px solid var(--company-border) !important;
+    text-align: center !important;
+}
+
+.custom-table td {
+    padding: 10px 14px !important;
+    font-size: 14px !important;
+    text-align: center !important;
+    border-bottom: 1px solid var(--company-border) !important;
+    font-weight: 400 !important;
+}
+
+.custom-table tr:last-child td {
+    border-bottom: none !important;
+}
+
+/* Table row colors */
+td.two-r {
+    background-color: rgba(213, 143, 213, 0.3) !important;
+}
+
+td.three-r {
+    background-color: rgba(179, 179, 255, 0.3) !important;
+}
+
+td.two-rvv {
+    background-color: rgba(255, 228, 148, 0.3) !important;
+}
+
+td.three-rvv {
+    background-color: rgba(255, 178, 178, 0.3) !important;
+}
+
+tr.table-pink td {
+    background: rgba(220, 156, 210, 0.2) !important;
+}
+
+/* --- Icons --- */
+.fa, .fas, .far, .fab {
+    font-size: inherit;
+}
+
+.modal-body i.fas.fa-city {
+    color: var(--company-primary) !important;
+    margin-right: 8px !important;
+}
+
+.login-div label.floating-label i.fas.fa-user-alt {
+    color: var(--company-primary) !important;
+    font-size: 14px !important;
+}
+
+.company-table i.fa.fa-check-circle {
+    font-size: 16px !important;
+    color: #fff !important;
+    background: #38a169 !important;
+    padding: 6px !important;
+    border-radius: var(--company-radius-sm) !important;
+}
+
+/* --- DataTables Search and Length --- */
+.dataTables_wrapper .dataTables_filter input {
+    border: 2px solid var(--company-border) !important;
+    border-radius: var(--company-radius-sm) !important;
+    padding: 6px 12px !important;
+    font-size: 14px !important;
+    transition: var(--company-transition) !important;
+}
+
+.dataTables_wrapper .dataTables_filter input:focus {
+    border-color: var(--company-primary) !important;
+    box-shadow: 0 0 0 3px rgba(232, 101, 46, 0.1) !important;
+    outline: none !important;
+}
+
+.dataTables_wrapper .dataTables_length select {
+    border: 2px solid var(--company-border) !important;
+    border-radius: var(--company-radius-sm) !important;
+    padding: 4px 8px !important;
+}
+
+/* --- Setting page --- */
+.login-div.setting-div {
+    background: var(--company-card-bg);
+    padding: 24px !important;
+    border-radius: var(--company-radius-md) !important;
+    box-shadow: none !important;
+}
+
+.setting-div .form-group {
+    margin-bottom: 16px !important;
+}
+
+.setting-div input#exampleInputEmail1 {
+    border-radius: var(--company-radius-sm) !important;
+    border: 2px solid var(--company-border) !important;
+    padding: 12px 14px !important;
+}
+
+/* --- Print button --- */
+.btn.btn-primary.print {
+    background: var(--company-primary) !important;
+    border-color: var(--company-primary) !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    border-radius: var(--company-radius-sm) !important;
+    padding: 10px 20px !important;
+    box-shadow: var(--company-shadow-sm) !important;
+    transition: var(--company-transition) !important;
+}
+
+.btn.btn-primary.print:hover {
+    background: var(--company-primary-light) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* --- Mobile Navbar --- */
+.mobile-navbar nav.navbar {
+    background: var(--company-card-bg) !important;
+    box-shadow: var(--company-shadow-md) !important;
+    padding: 8px 16px !important;
+}
+
+.mobile-navbar .navbar-brand {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    color: var(--company-text) !important;
+    font-weight: 700 !important;
+}
+
+.mobile-navbar .navbar-toggler {
+    border: none !important;
+    padding: 4px 8px !important;
+}
+
+.mobile-navbar .navbar-collapse {
+    background: var(--company-card-bg) !important;
+    border-radius: var(--company-radius-md) !important;
+    box-shadow: var(--company-shadow-md) !important;
+    margin-top: 8px;
+    padding: 8px;
+}
+
+/* --- Scrollbar styling --- */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--company-bg);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--company-border);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--company-text-muted);
+}
+
+/* --- Responsive Overrides --- */
+@media (max-width: 767px) {
+    section.overview-sec,
+    section.add-user-sec {
+        margin: 10px !important;
+        padding: 16px !important;
+    }
+
+    .data-table-new {
+        padding: 12px !important;
+        overflow-x: auto !important;
+    }
+
+    .modal-content {
+        margin: 10px !important;
+        border-radius: var(--company-radius-md) !important;
+    }
+
+    .modal-body.report-body {
+        flex-direction: column !important;
+    }
+
+    .report-body .col-sm-6 {
+        width: 100% !important;
+    }
+
+    .entries {
+        flex-direction: column !important;
+        gap: 8px !important;
+        align-items: flex-start !important;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+    section.overview-sec,
+    section.add-user-sec {
+        margin: 16px !important;
+        padding: 20px !important;
+    }
+}
+
+/* --- Empty state --- */
+.dataTables_empty,
+td:only-child {
+    text-align: center !important;
+    padding: 40px 20px !important;
+    color: var(--company-text-muted) !important;
+    font-style: italic;
+}
+
+/* --- Header row override --- */
+.header-row {
+    background-color: var(--company-bg) !important;
+}
+
+.header-row th {
+    border: none !important;
+    border-bottom: 2px solid var(--company-border) !important;
+    background: var(--company-bg) !important;
+    font-weight: 600 !important;
+}
+
+/* --- Status badges --- */
+.btn-action button {
+    border-radius: var(--company-radius-sm) !important;
+    padding: 5px 10px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    transition: var(--company-transition) !important;
+}
+
+/* --- Fix DataTables sort icons --- */
+table.dataTable thead .sorting::before,
+table.dataTable thead .sorting::after,
+table.dataTable thead .sorting_asc::before,
+table.dataTable thead .sorting_asc::after,
+table.dataTable thead .sorting_desc::before,
+table.dataTable thead .sorting_desc::after {
+    opacity: 0.4;
+}
+
+table.dataTable thead .sorting_asc::after,
+table.dataTable thead .sorting_desc::before {
+    opacity: 1;
+    color: var(--company-primary);
+}
+
+/* --- Stronger table header overrides --- */
+.data-table-new th,
+table.dataTable thead th,
+.custom-table th,
+.header-row th {
+    background: #f8f9fc !important;
+    color: #2d3748 !important;
+    border: none !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.6px !important;
+    padding: 12px 14px !important;
+}
+
+/* Remove DataTable sort arrow overrides */
+.data-table-new th::before,
+.data-table-new th::after {
+    display: none !important;
+}
+
+/* --- Settings Page --- */
+section h2 {
+    font-size: 22px !important;
+    font-weight: 700 !important;
+    color: #2d3748 !important;
+    padding: 16px 24px !important;
+    margin: 0 !important;
+}
+
+/* Settings tabs */
+.nav-tabs,
+ul[role="tablist"] {
+    border-bottom: 2px solid #e2e8f0 !important;
+    padding: 0 16px !important;
+    background: #ffffff !important;
+    border-radius: 12px 12px 0 0 !important;
+    margin: 0 20px !important;
+}
+
+.nav-tabs .nav-link,
+ul[role="tablist"] button {
+    border: none !important;
+    padding: 12px 20px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: #718096 !important;
+    border-radius: 8px 8px 0 0 !important;
+    transition: all 0.2s ease !important;
+    background: transparent !important;
+}
+
+.nav-tabs .nav-link.active,
+ul[role="tablist"] button[aria-selected="true"] {
+    color: #e8652e !important;
+    border-bottom: 3px solid #e8652e !important;
+    font-weight: 600 !important;
+    background: transparent !important;
+}
+
+/* Settings accordion buttons */
+.tab-content button,
+div[role="tabpanel"] button {
+    background: #ffffff !important;
+    border: 2px solid #e2e8f0 !important;
+    color: #2d3748 !important;
+    padding: 14px 20px !important;
+    margin: 8px 20px !important;
+    border-radius: 10px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    width: calc(100% - 40px) !important;
+    text-align: left !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+
+.tab-content button:hover,
+div[role="tabpanel"] button:hover {
+    border-color: #e8652e !important;
+    box-shadow: 0 2px 8px rgba(232, 101, 46, 0.15) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Fix: dont apply tab-content button styles to nav/header buttons */
+header button,
+nav button,
+.modal button,
+.modal-footer button,
+section.overview-sec button,
+section.add-user-sec button,
+.settling-report button {
+    width: auto !important;
+    margin: 0 !important;
+    text-align: center !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+}
+
+/* --- Company-info page layout --- */
+section:has(> .custom-search-bar),
+section:has(> input[placeholder*="Search"]) {
+    display: flex !important;
+    gap: 20px !important;
+    padding: 20px !important;
+}
+
+/* Left search panel */
+section > div:first-child:has(input[placeholder*="Search"]) {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    min-width: 180px;
+}
+
+/* --- Settling report button in nav --- */
+.settling-report button.btn.btn-primary {
+    background: transparent !important;
+    border: none !important;
+    color: #2d3748 !important;
+    padding: 8px 16px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    border-radius: 8px !important;
+}
+
+.settling-report button.btn.btn-primary:hover {
+    background: #e8652e !important;
+    color: #fff !important;
+}
+
+/* --- Better empty table state --- */
+table tbody td:only-child,
+.dataTables_empty {
+    text-align: center !important;
+    padding: 48px 20px !important;
+    color: #a0aec0 !important;
+    font-size: 14px !important;
+    font-style: normal !important;
+    background: #fafbfc !important;
+}
+
+/* --- Card wrapper for main content area --- */
+section.add-user-sec,
+section:has(table) {
+    background: #ffffff !important;
+    margin: 16px 20px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+    padding: 20px !important;
+}
+
+/* --- Fix header nav active state --- */
+header.menu-head-sec .settling-report button,
+header.menu-head-sec a {
+    position: relative !important;
+}
+

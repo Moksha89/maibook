@@ -1,0 +1,18 @@
+.dropdown-container {
+    position: relative;
+    width: 300px;
+}
+
+.dropdown-menu {
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
+}
+
+.search-box {
+    padding: 5px 10px;
+    border: 1px solid #ddd;
+    width: calc(100% - 20px);
+    margin: 5px auto;
+    border-radius: 4px;
+}

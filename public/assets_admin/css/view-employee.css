@@ -1,0 +1,137 @@
+.btns-back-edit .btn-back-emp {
+    background: transparent;
+    color: #000;
+    border: 2px solid #C3CBD6;
+}
+.btns-back-edit .btn-back-emp:hover {
+    background: transparent;
+    color: #000;
+    border: 2px solid #C3CBD6;
+}
+.btns-back-edit .btn-back-emp:active {
+    border: 2px solid #C3CBD6 !important;
+}
+.btns-back-edit .btn-edit-emp {
+    background: #ffcf0f;
+    color: #000;
+    border: 2px solid #ffcf0f!important;
+    outline: none !important;
+    box-shadow: none !important;
+    display: flex;
+    align-items: center;
+}
+.btns-back-edit .btn-edit-emp:hover {
+    background:#ffcf0f !important;
+    color: #000 !important;
+    border: 2px solid #ffcf0f !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+.btns-back-edit .btn-edit-emp:active {
+    border: 2px solid #000 !important;
+    background: #000 !important;
+    color: #FFF !important;
+}
+.card-title.btns-back-edit {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+}
+.btns-back-edit i.bi.bi-pencil-square {
+    margin-right: 16px;
+    font-size: 16px;
+}
+.view-emo-img  img.product-list-img {
+    width: 140px; 
+    border-radius: 50%;
+    height: 140px;
+}
+.view-emo-img {
+    text-align: center;
+}
+h5.emp-list-title {
+    text-align: center;
+    margin-top: 10px !important;
+    margin-bottom: 10px !important;
+}
+.emp-list-price {
+    text-align: center;
+}
+.emp-list-price a {
+    background:#ffcf0f;
+    color: #000;
+    padding: 1px 15px 4px 15px;
+    border-radius: 50px;
+    font-size: 16px;
+    font-weight: 500;
+}
+.cont-email-icon {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+}
+.emp-list-details {
+    margin-bottom: 20px;
+}
+.employee-details-req-doc h5.emp-del-title {
+    font-size: 22px;
+    font-weight: 500;
+}
+.employee-details-req-doc h5.emp-fin-title {
+    font-size: 18px;
+    font-weight: normal;
+    margin-bottom: 5px;
+}
+.salary-savings {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.request-status-flx {
+    display: flex;
+}
+.col-xl-4.col-sm-4.col-12.request-status-code-1 {
+    width: 30%;
+    margin-right: 4%;
+}
+.col-xl-4.col-sm-4.col-12.request-status-code-2 {
+    width: 30%;
+    margin-right: 4% !important;
+}
+.col-xl-4.col-sm-4.col-12.request-status-code-3 {
+    width: 30%;
+}
+.request-status-flx {
+    display: flex;
+    justify-content: space-between;
+}
+.request-status-flx .task-stats-container {
+    background: #F3F4F6;
+    display: block;
+    text-align: center;
+    height: 135px;
+}
+.task-request-status i.fa.fa-clock-o {
+    color: #ffcf0f;
+    font-size: 20px;
+}
+.task-request-status i.bi.bi-check2-circle {
+    color: #00d04e;
+    font-size: 20px;
+}
+.task-request-status i.bi.bi-x-circle-fill {
+    color: #fe0303;
+    font-size: 20px;
+}
+.docu-table-strt th {
+    font-size: 15px !important;
+    font-weight: 400 !important;
+}
+.product-list-card.assigned-employe-height {
+    height: 516px !important;
+}
+.col-xxl-8.col-sm-8.col-12.code-emp-del-req-doc {
+    width: 65.666667% !important;
+}

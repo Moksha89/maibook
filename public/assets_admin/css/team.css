@@ -1,0 +1,407 @@
+
+
+li.nav-item {
+    width: 33%;
+}
+
+li.nav-item button {
+    width: 100% !important;
+    color: #BAB0AF;
+}
+
+.nav-tabs .nav-link.active {
+    background-color: #ffcf0f !important;
+    border: none !important;
+    border-radius: 6px !important;
+    color: #000 !important;
+}
+
+ul#myTab {
+    background-color: #F4F4F5;
+    height: 50px;
+    padding: 5px;
+    border: none;
+    border-radius: 10px;
+}
+
+i.fa-solid.fa-check {
+    font-size: 12px;
+}
+
+i.fa-solid.fa-minus {
+    font-size: 12px;
+}
+
+.emplyee-section {
+    padding: 20px;
+    border: 1px solid #F4F4F5;
+    margin-top: 15px;
+    border-radius: 10px;
+}
+
+.first-content p {
+    color: #B6B7BB;
+}
+
+.first-content h1 {
+    font-size: 25px;
+}
+
+
+.second-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0px 10px;
+}
+
+input[type="text"] {
+    color: #B0BFD4 !important;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #F4F4F5;
+    width: 295px;
+}
+
+i.fa-solid.fa-magnifying-glass {
+    border: 1px solid #F4F4F5;
+    padding: 12px;
+    border-radius: 5px;
+}
+
+i.fas.fa-filter {
+    border: 1px solid #F4F4F5;
+    padding: 12px;
+    border-radius: 5px;
+}
+
+button.add-emloyee {
+    color: #000;
+    border: none;
+    background-color: #ffcf0f;
+    padding: 8px 20px;
+    border-radius: 10px;
+}
+
+button.bulk {
+    background-color: #fff;
+    border: 1px solid #F4F4F5;
+    padding: 10px 20px;
+    border-radius: 10px;
+}
+
+i.fas.fa-list {
+    background-color: #18181B;
+    color: #fff;
+    border-radius: 5px;
+    padding: 12px;
+}
+
+.add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.grid {
+    border: 1px solid #F4F4F5;
+    text-align: center;
+    border-radius: 5px;
+    padding: 6px 9px;
+}
+
+.data-content {
+    padding: 17px 10px;
+}
+
+.data-content table {
+    width: 100%;
+    line-height: 50px;
+}
+
+.data-content tr {
+    border-bottom: 1px solid #ddd !important;
+}
+
+.data-content th {
+    color: #222;
+}
+
+.data-content td {
+    color: #333 !important;
+}
+
+
+
+.member-data table {
+    width: 100%;
+    line-height: 50px;
+}
+
+.member-data tr {
+    border-bottom: 1px solid #ddd !important;
+}
+
+.member-data th {
+    color: #222;
+}
+
+.member-data td {
+    color: #333 !important;
+}
+.form-content input#teamName {
+    border: 1px solid #ddd;
+}
+
+.leader-detail-section {
+    border-bottom: 1px solid #ddd;
+}
+.modal-header {
+    border-bottom: none !important;
+
+}
+
+.modal-footer {
+    border-top: none !important;
+}
+
+h5#exampleModalLabel {
+    font-size: 27px;
+    font-weight: 700;
+}
+
+p.model-para {
+    color: #7F91AE;
+    font-size: 17px;
+}
+
+label.form-label {
+    color: #000;
+    font-weight: 500;
+}
+
+input#teamName {
+    width: 100%;
+}
+
+
+button.create-btn {
+    border: none;
+    padding: 9px 15px;
+    color: #000;
+    font-weight: 500;
+    font-size: 20px;
+    border-radius: 10px;
+    background-color: #ffcf0f;
+}
+
+button.btn-close.close_btns {
+    font-size: 25px;
+    position: relative;
+    bottom: 20px;
+}
+
+.two-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+
+button.back-to-team {
+    background: #fff;
+    padding: 6px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+button.edit-team-btn {
+    color: #000;
+    border: none;
+    padding: 6px 15px;
+    background-color:#ffcf0f;
+    border-radius: 8px;
+}
+.data-content i.fa-solid.fa-pencil {
+    margin: 0 20px;
+}
+
+h1.deve-heading {
+    font-size: 20px;
+    margin-bottom: 5px;
+}
+
+.develop-contnent p {
+    color: #B5B4B6;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.development-section {
+    padding: 20px;
+    border: 1px solid #F4F4F5;
+    border-radius: 8px;
+    background-color: #fff;
+    margin-bottom: 10px;
+}
+
+.total-salary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.salary-amount p {
+    color: #5d566c !important;
+    font-weight: 700;
+    margin: 0px;
+}
+
+.salary-icon i {
+    color: #afafb9 !important;
+}
+
+.leader-details {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.leader-image img {
+    width: 65px;
+    border-radius: 100%;
+}
+
+
+.leader-details {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+h5.team-leader {
+    font-size: 20px;
+    margin-bottom: 15px;
+}
+
+p.name-leader {
+    color: #5d566c !important;
+    margin: 0px;
+    font-weight: 700;
+}
+
+.detail-content p {
+    color: #B5B4B6;
+    margin: 0px;
+    line-height: 20px;
+}
+
+
+button.edit {
+    padding: 6px;
+    border: 1px solid #F4F4F5;
+    background: transparent;
+    border-radius: 8px;
+}
+
+.leader-colunm {
+    padding: 20px;
+    border: 1px solid #F4F4F5;
+    border-radius: 8px;
+    background-color: #fff;
+    margin-bottom: 10px;
+}
+
+.team-member-section {
+    padding: 20px;
+    border: 1px solid #F4F4F5;
+    border-radius: 8px;
+    background-color: #fff;
+    margin-bottom: 10px;
+}
+
+h5.team-member {
+    font-size: 20px;
+    margin-bottom: 15px;
+}
+
+.member-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.icons {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.icons i.fa-solid.fa-list {
+    background-color: #F4F4F5;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+button.action {
+    padding: 6px;
+    border: 1px solid #ddd;
+    background: transparent;
+    border-radius: 8px;
+    text-align: center;
+    color: #333 !important;
+    line-height: 20px;
+}
+
+.contact p {
+    line-height: 17px;
+}
+
+.member-image img {
+    width: 45px;
+    border-radius: 100%;
+}
+.member-image {
+    margin: 10px 0px;
+}
+
+
+.edit-team-section {
+    padding: 20px;
+    border: 1px solid #F4F4F5;
+    border-radius: 8px;
+    background-color: #fff;
+    margin-bottom: 10px;
+}
+
+h5.edit-team {
+    font-size: 20px;
+    margin-bottom: 15px;
+}
+
+.team-leaders {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 20px !important;
+}
+
+button.add-leader-btn {
+    border: 1px solid #F4F4F5;
+    background: transparent;
+    padding: 6px;
+    border-radius: 8px;
+}
+
+.leader-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+td.john {
+    padding-right: 230px;
+}

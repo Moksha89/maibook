@@ -1,0 +1,917 @@
+td {
+    padding: 10px 18px !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+}
+
+th {
+    text-align: center !important;
+    white-space: nowrap !important;
+}
+
+.sidebar-wrapper {
+    overflow-y: scroll;
+    scrollbar-width: none;
+}
+  /* Loader Container */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.9); /* Light overlay */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999; /* Above all content */
+        }
+
+        /* Spinner */
+        .spinner {
+            width: 65px;
+            height: 65px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #f0ad4e; /* Match the yellow theme */
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Spinner Animation */
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Hide the loader once content is loaded */
+        body.loaded #loader {
+            display: none;
+        }
+
+
+
+ /* Calendar Header (Month and Year) */
+        .calendar-header {
+            background-color:#222; /* Yellow background */
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 5px 5px 0 0;
+        }
+        
+        /* Month Calendar */
+        .month-calendar {
+            margin-bottom: 30px;
+        }
+
+        /* Weekday Labels */
+        .day-label {
+            background-color:#333; /* Yellow background */
+            color: white;
+            text-align: center;
+            padding: 10px 0;
+            font-weight: bold;
+            border: 1px solid #333; /* Border to match the yellow background */
+        }
+
+        /* Calendar Cell for Each Date */
+        .calendar-cell {
+            border: 1px solid #ddd;
+            text-align: center;
+            padding: 20px;
+            background-color: #fff; /* Light yellow background */
+            cursor: pointer;
+        }
+
+        /* Hover Effect on Calendar Cell */
+        .calendar-cell:hover {
+            background-color: #fbe2a1; /* Darker yellow on hover */
+        }
+
+        /* Event List */
+        .event-list {
+            margin-top: 20px;
+        }
+
+        /* Event Item */
+        .event-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ffcf0f;
+            border-radius: 5px;
+        }
+
+        /* Event Navigation */
+        .event-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Calendar Controls (Prev and Next buttons) */
+        .calendar-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        /* Event Badge */
+        .event {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #fff;
+            background-color: #ffcf0f; /* Yellow background for event badge */
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+
+
+
+.overview-tab-sec .nav-tabs .nav-link.active {
+
+    color: #000 !important;
+
+    border: 0px solid #F4F4F5;
+
+    border-radius: 4px;
+
+    background-color: #ffcf0f !important;
+
+}
+
+.overview-tab-sec li.nav-item {
+
+    width: 33%;
+
+    text-align: center;
+
+}
+
+.overview-tab-sec ul.nav.nav-tabs {
+
+    border: 0px solid #F4F4F5;
+
+    border-radius: 4px;
+
+    background-color: #F4F4F5 !important;
+
+    padding: 4px;
+
+}
+
+.overview-tab-sec a.nav-link {
+
+    font-size: 16px;
+
+    font-weight: normal;
+
+    padding: 5px;
+
+    border: none !important;
+
+}
+
+.action-btn i.fas.fa-user-times {
+
+    color: #E22141;
+
+}
+
+.nav-tabs .nav-link {
+
+    color: #585a5c;
+
+}
+
+.sidebar-brand .logo img {
+
+    max-width: 150px !important;
+
+    max-height: 100px !important;
+
+}
+
+
+
+section#Only-Active-Employees-Manage {
+
+    display: none;
+
+}
+
+section#Assigned-idle-id2 {
+
+    display: none;
+
+}
+
+section#Only-Resigned-Employees-Manage {
+
+    display: none;
+
+}
+
+
+
+
+
+section#Assigned-id1 {
+
+    display: none;
+
+}
+
+
+
+
+
+.overview-tab-sec .nav-tabs .nav-link.active {
+    color: #000 !important;
+    border: 0px solid #F4F4F5;
+    border-radius: 4px;
+    background-color: #ffcf0f !important;
+}
+.overview-tab-sec li.nav-item {
+    width: 33%;
+    text-align: center;
+}
+.overview-tab-sec ul.nav.nav-tabs {
+    border: 0px solid #F4F4F5;
+    border-radius: 4px;
+    background-color: #F4F4F5 !important;
+    padding: 4px;
+}
+.overview-tab-sec a.nav-link {
+    font-size: 16px;
+    font-weight: normal;
+    padding: 5px;
+    border: none !important;
+}
+.action-btn i.fas.fa-user-times {
+    color: #E22141;
+}
+.nav-tabs .nav-link {
+    color: #585a5c;
+}
+.sidebar-brand .logo img {
+    max-width: 150px !important;
+    max-height: 100px !important;
+}
+
+section#Only-Active-Employees-Manage {
+    display: none;
+}
+section#Assigned-idle-id2 {
+    display: none;
+}
+section#Only-Resigned-Employees-Manage {
+    display: none;
+}
+
+
+section#Assigned-id1 {
+    display: none;
+}
+
+
+
+
+/* section#Assigned-idle-id2 {
+    display: none;
+}
+section#Assigned-id1 {
+    display: none !important;
+} */
+.all-employees-sec .table .media-box img.media-avatar {
+    height: 60px;
+    margin: 0 15px 0 0;
+    border-radius: 50px;
+}
+.table-all-emp-sec th {
+    color: #9c9c9e;
+    font-weight: 500;
+    font-size: 16px;
+}
+.table-all-emp-sec td {
+    font-weight: normal;
+    font-size: 16px;
+    padding-top: 16px !important;
+    padding-bottom: 16px !important;
+}
+.tab-all-emp .text-muted {
+  font-size: 0.9rem;
+}
+
+.tab-all-emp .search-bar {
+    max-width: 300px;
+    gap: 10px;
+}
+.search-model-flx .input-group .btn {
+    border-radius: 4px !important;
+    color: #000;
+    border: 2px solid #e0dfdf;
+}
+.search-model-flx input.form-control {
+    border-radius: 4px !important;
+    border: 2px solid #e0dfdf;
+}
+.search-model-flx .action-btns {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.tab-all-emp .table th, .table td {
+  vertical-align: middle;
+}
+
+.tab-all-emp .action-icons i {
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+.tab-all-emp .action-icons i:hover {
+  color: #007bff;
+}
+
+.tab-all-emp .btn-light {
+  border: 1px solid #ccc;
+}x
+
+.tab-all-emp .table-hover tbody tr:hover {
+  background-color: #f1f1f1;
+}
+.action-btns .add-emp-btn {
+    line-height: 1.5;
+    padding: 7px 15px;
+    background: #ffcf0f;
+    color: #000;
+    border: 2px solid #ffcf0f;
+    border-radius: 4px;
+    margin: 0px !important;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.action-btns .add-emp-btn:hover{
+    line-height: 1.5;
+    padding: 7px 15px;
+    background: #ffcf0f;
+    color: #000;
+    border: 2px solid #ffcf0f;
+    border-radius: 4px;
+    margin: 0px !important;
+    font-size: 14px;
+    font-weight: 600;
+}
+.action-btns .add-emp-btn:active{
+background-color:#ffcf0f!important;
+border: 2px solid #ffcf0f!important;
+color: #000 !important;
+}
+.action-btns .add-emp-btn:focus{
+background-color:#ffcf0f !important;
+border: 2px solid #ffcf0f !important;
+color: #000 !important;
+}
+.action-btns .add-emp-btn:focus-visible{
+background-color:#ffcf0f !important;
+border: 2px solid #ffcf0f !important;
+color: #000 !important;
+outline: none !important;
+box-shadow: none !important;
+}
+.action-btns i.fa.fa-plus-circle {
+    margin-right: 10px;
+    font-size: 16px;
+}
+
+.action-btns .bulk-action-btn {
+    line-height: 1.5;
+    padding: 7px 15px;
+    border: 2px solid #e0dfdf;
+    border-radius: 4px;
+    margin: 0px !important;
+    font-size: 14px;
+    font-weight: 600;
+    background: #FFF;
+}
+.action-btns i.fa.fa-ellipsis-h {
+    margin-left: 10px;
+}
+.action-btns .list-action-btn {
+    font-size: 16px;
+    line-height: 1.4;
+    padding: 7px 10px;
+    background: #000;
+    color: #FFF;
+    border: 0px solid #000;
+    border-radius: 4px;
+    margin: 0px !important;
+    font-weight: 600;
+}
+.action-btns .large-action-btn {
+    font-size: 16px;
+    line-height: 1.6;
+    padding: 4px 10px;
+    background: #FFF;
+    color: #000;
+    border: 2px solid #e0dfdf;
+    border-radius: 4px;
+    margin: 0px !important;
+    font-weight: 600;
+}
+.heading-top h2 {
+    font-size: 28px;
+    font-family: system-ui;
+    font-weight: 700;
+}
+.container.tab-all-emp.mt-5 {
+    border: 2px solid #F4F4F5;
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 10px !important;
+}
+
+.action-btn button {
+    background: transparent;
+    border: none;
+}
+
+
+/* Active Employees css */
+/* #Assigned-id1 .container.my-3.tab-cont {
+    padding-left: 0px;
+    padding-right: 0px;
+} */
+
+.active-employees-tab .active-employees-list {
+    width: 50% !important;
+}
+.active-employees-list i {
+    margin-right: 10px;
+}
+
+
+
+
+.vlbook-grid {
+    padding: 10px 20px;
+    box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+    border-radius: 10px;
+    text-align: center;
+}
+.row.grid-temp-row {
+    margin-bottom: 2%;
+}
+.vlbook-grid img.media-avatar {
+    width: 80px;
+}
+.icon-viwe-edit {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+.icon-viwe-edit i.fas.fa-eye {
+    background: #fff;
+    border: 1px solid #939090;
+    border-radius: 50px;
+    padding: 4px 7px 4px 7px;
+    line-height: 1.5;
+    font-size: 14px;
+}
+.icon-viwe-edit i.fas.fa-id-badge {
+    background: #ffcf0f;
+    border: 1px solid #ffcf0f;
+    border-radius: 50px;
+    padding: 4px 9px 4px 9px;
+    line-height: 1.5;
+    font-size: 14px;
+    color: #FFF;
+}
+section#Assigned-idle-id2 {
+    margin-top: 2%;
+    margin-bottom: 2%;
+}
+.sec-fil-btn button.btn.btn-outline-secondary:hover {
+    background: transparent !important;
+}
+.sec-fil-btn button.btn.btn-outline-secondary:active {
+    background: transparent !important;
+    color:  #000 !important;
+    border: 2px solid #e0dfdf !important;
+}
+.sec-fil-btn button.btn.btn-outline-secondary:focus {
+    background: transparent !important;
+    color:  #000 !important;
+    border: 2px solid #e0dfdf !important;
+    outline: none !important;
+}
+.sec-fil-btn button.btn.btn-outline-secondary:focus-visible {
+    background: transparent !important;
+    color:  #000 !important;
+    border: 2px solid #e0dfdf !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Add Emp modal css */
+.modal-dialog.mod-dark-one {
+    width: 100%;
+    max-width: 60%;
+}
+.mod-para.modal-header {
+    padding-top: 0px !important;
+    padding-bottom: 0px !important;
+}
+.modal-header.mod-tit {
+    padding-bottom: 0px !important;
+}
+.flx-for-up {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+}
+.col-xl-1.col-sm-1.col-12.upload-clss {
+    width: 5%;
+}
+.col-xl-1.col-sm-1.col-12.trash-clss {
+    width: 5%;
+}
+.col-xl-5.col-sm-4.col-12.expiry-clss {
+    width: 42% !important;
+}
+.upload-clss i.fas.fa-upload {
+    border: 1px solid #C3CBD6;
+    padding: 11px;
+    border-radius: 4px;
+}
+.col-xl-5.col-sm-4.col-12.doc-name-clss {
+    width: 42% !important;
+}
+.trash-clss .icon-button {
+    border: 1px solid #C3CBD6;
+    padding: 7px 12px 7px 12px;
+    border-radius: 4px;
+    background: transparent;
+}
+button.btn.btn-info.add-doc-new {
+    line-height: 1.5;
+    padding: 7px 15px;
+    background: transparent;
+    color: #000;
+    border: 1px solid #C3CBD6;
+    border-radius: 4px;
+    margin: 0px !important;
+    font-size: 14px;
+    font-weight: normal;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.add-doc-new i.fa.fa-plus-circle {
+    font-size: 15px;
+    margin-right: 6px;
+}
+.footer-btn .Submit-frm-btn {
+    background: #ffcf0f !important;
+    border: 1px solid #ffcf0f !important;
+    color: #000;
+    font-weight: 600;
+}
+.footer-btn .Submit-frm-btn:active {
+    background: #ffcf0f !important;
+    border: 1px solid #ffcf0f !important;
+    outline: none !important;
+}
+button.btn.btn-dark.cancel-btn-frm {
+    background: transparent;
+    color: #000;
+    border: 1px solid #C3CBD6;
+}
+button.btn.btn-dark.cancel-btn-frm:active {
+    outline: none !important;
+    background: transparent;
+    color: #000;
+    border: 1px solid #C3CBD6;
+}
+button.btn.btn-dark.cancel-btn-frm:focus-visible {
+    outline: none !important;
+    background: transparent;
+    color: #000;
+    border: 1px solid #C3CBD6;
+}
+.footer-btn .Submit-frm-btn:hover {
+    background: #ffcf0f !important;
+}
+.mod-strt-bdy .form-label {
+    color: #000;
+    font-size: 16px;
+}
+.mod-tit h5#modalDarkLabel {
+    font-size: 22px;
+    font-weight: 500;
+    margin-top: 10px;
+}
+.mod-para p {
+    font-size: 16px;
+}
+/* Add Emp modal css end */
+
+
+
+
+
+.btns-back-edit .add-company {
+    background: #FFC107;
+    border: #FFC107;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+}
+.card-title.btns-back-edit {
+    margin-bottom: 15px !important;
+}
+.btns-back-edit .add-company:active {
+    background: #FFC107 !important;
+    border: #FFC107 !important;
+}
+.add-company-footer .Create-btn {
+    background: #FFC107;
+    border: #FFC107;
+    font-weight: 600;
+}
+.add-company-footer .Create-btn:active {
+    background: #FFC107;
+    border: #FFC107;
+    font-weight: 600;
+}
+.add-company-footer .Cancel-btn {
+    background: #6c757d;
+    border-color: #6c757d;
+}
+.add-company-footer .Cancel-btn:active {
+    background: #6c757d;
+    border-color: #6c757d;
+}
+#otpModal button#otpContinue {
+    background: #FFC107;
+    border: #FFC107;
+    font-weight: 600;
+}
+#otpModal button#otp_close {
+    background: #6c757d;
+    border-color: #6c757d;
+}
+.btn_color_change a.btn.btn-primary.cross {
+    font-size: 12px !important;
+    padding: 4px 10px !important;
+    background: #FFC107;
+    border: #FFC107;
+}
+.btn_color_change i.fa.fa-download {
+    font-size: 12px !important;
+}
+.btn_color_change button.btn.btn-primary.gear {
+    font-size: 12px !important;
+    padding: 4px 10px !important;
+    background: #dc3545;
+    border: #dc3545;
+    line-height: normal;
+
+}
+.btn_color_change i.fa.fa-clock-o {
+    font-size: 16px !important;
+}
+#all_comapny a.fa_edit {
+    padding: 4px 10px !important;
+    background: #FFC107;
+    border: #FFC107;
+    border-radius: 4px;
+}
+#all_comapny a.delete-icon {
+    padding: 5px 10px !important;
+    background: #dc3545;
+    border-radius: 4px;
+    margin-right: 5px;
+}
+#all_comapny a.fa_edit i.fa.fa-edit {
+    font-size: 14px;
+}
+#all_comapny .delete-icon i.fa.fa-trash {
+    color: #fff !important;
+    font-size: 14px;
+}
+#all_comapny button.btn.btn-danger.make-inactive i.fa.fa-times-circle {
+    font-size: 14px;
+    margin: 0px;
+    line-height: normal !important;
+}
+#all_comapny button.btn.btn-danger.make-inactive {
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+}
+
+#company_assignments .edit-button {
+    font-size: 12px !important;
+    padding: 4px 10px !important;
+    background: #FFC107;
+    border: #FFC107;
+}
+#company_assignments .edit-button i.fa.fa-edit {
+    font-size: 14px;
+    line-height: normal !important;
+    margin: 0px !important;
+    margin-bottom: 2px !important;
+}
+#company_assignments .delete-button {
+    background: #dc3545;
+    font-size: 12px !important;
+    padding: 4px 10px !important;
+}
+#company_assignments .delete-button i.fa.fa-trash {
+    font-size: 12px;
+}
+#editModal .form-group {
+    margin-bottom: 10px;
+}
+.edit_mode_new  button.btn.btn-primary {
+    background: #FFC107;
+    border: #FFC107;
+}
+#partners button.btn.btn-danger.inactivebtn {
+    padding: 6px 8px 6px  8px !important;
+    background: #bb2124 !important;
+    border: #bb2124 !important;
+    line-height: normal !important;
+}
+#partners button.btn.btn-danger.inactivebtn i.fas.fa-user-alt-slash {
+    font-size: 14px;
+    margin-right: 0px !important;
+}
+#partners a.edit-icon {
+    padding: 4px 8px 8px  8px !important;
+    background: #FFC107;
+    border: #FFC107;
+    border-radius: 4px;
+    line-height: normal;
+}
+#partners a.delete-icon {
+    padding: 4px 8px 8px  8px !important;
+    background: #dc3545;
+    border: #dc3545;
+    border-radius: 4px;
+}
+#partners .delete-icon i.fa.fa-trash {
+    color: #FFF !important;
+}
+#partners button.activebtn {
+    border: #008000;
+    background: #008000;
+    padding: 6px 10px 6px  10px !important;
+    border-radius: 4px;
+    color: #FFF;
+    line-height: 0px;
+}
+#partners button.activebtn i.fa.fa-check-circle {
+    font-size: 14px;
+    line-height: normal !important;
+}
+#all_comapny a.make-inactive {
+    padding: 5px 10px !important;
+    background: #bb2124 !important;
+    border-radius: 4px !important;
+}
+#all_comapny a.make-inactive i.fa.fa-times-circle {
+    color: #FFF;
+}
+
+#exampleModal1 button.btn.btn-primary {
+    background: #FFC107;
+    border: #FFC107;
+}
+#exampleModal1 button.btn.btn-secondary {
+    background: #6c757d;
+    border: #6c757d;
+}
+
+#editModal button.btn.btn-primary {
+    background: #FFC107;
+    border: #FFC107;
+}
+#editModal button.btn.btn-secondary {
+    background: #6c757d;
+    border: #6c757d;
+}
+
+#weblogoModal .Cancel-btn {
+    background: #6c757d;
+    border-color: #6c757d;
+}
+#weblogoModal .Create-btn_upload {
+    background: #FFC107;
+    border: #FFC107;
+}
+#weblogoModal label.upload-btn-logo {
+    border: 1px solid #6c6565;
+    border-radius: 4px;
+    padding: 7px;
+    width: 100%;
+}
+.btns-back-edit .add-company i.fa.fa-plus {
+    font-size: 14px;
+}
+#deleteModal button.btn.btn-secondary {
+    background: #6c757d;
+    border-color: #6c757d;
+}
+@media(min-width: 240px) and (max-width: 479px){
+    .mobile_logo_none img.logo-sm {
+        display: none;
+    }
+    .btns-back-edit .add-company {
+        font-size: 12px !important;
+        padding: 5px 10px !important;
+    }
+    .btns-back-edit h5 {
+        margin-bottom: 0px !important;
+    }
+    #NewbackupModal .modal-header.modal-company-header {
+        padding: 0px !important;
+    }
+    #otpModal .modal-header {
+        padding-bottom: 0px !important;
+    }
+    .btns-back-edit .add-company i.fa.fa-plus {
+        font-size: 14px !important;
+    }
+    #editModal .modal-header.modal-company-header.company-setting {
+        padding-bottom: 0px !important;
+    }
+    #editModal .modal-header {
+        padding-bottom: 0px !important;
+    }
+    #deleteModal .modal-header {
+        padding-bottom: 0px !important;
+    }
+    #changepassModalemp .modal-header.modal-company-header {
+        margin-bottom: 0px;
+        padding-bottom: 0px !important;
+    }
+    #changepassModalemp .login-div.mix-from input {
+        margin-bottom: 5px !important;
+    }
+}
+
+@media(min-width: 480px) and (max-width: 767px){
+    .mobile_logo_none img.logo-sm {
+        display: none;
+    }
+    .btns-back-edit .add-company {
+        font-size: 12px !important;
+        padding: 5px 10px !important;
+    }
+    .btns-back-edit h5 {
+        margin-bottom: 0px !important;
+    }
+    #NewbackupModal .modal-header.modal-company-header {
+        padding: 0px !important;
+    }
+    #otpModal .modal-header {
+        padding-bottom: 0px !important;
+    }
+    .btns-back-edit .add-company i.fa.fa-plus {
+        font-size: 14px !important;
+    }
+    #editModal .modal-header.modal-company-header.company-setting {
+        padding-bottom: 0px !important;
+    }
+    #editModal .modal-header {
+        padding-bottom: 0px !important;
+    }
+    #deleteModal .modal-header {
+        padding-bottom: 0px !important;
+    }
+    #changepassModalemp .modal-header.modal-company-header {
+        margin-bottom: 0px;
+        padding-bottom: 0px !important;
+    }
+    #changepassModalemp .login-div.mix-from input {
+        margin-bottom: 5px !important;
+    }
+}
+@media(min-width: 768px) and (max-width: 999px){
+    .mobile_logo_none img.logo-sm {
+        display: none;
+    }
+}
