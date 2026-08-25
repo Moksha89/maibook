@@ -108,6 +108,7 @@ async function initializeClient() {
     if (client !== activeClient) {
       return;
     }
+    console.error('WhatsApp authentication failed.');
     state = 'disconnected';
     qr = null;
     pushname = null;
@@ -128,6 +129,7 @@ async function initializeClient() {
       if (client !== activeClient) {
         return;
       }
+      console.error('WhatsApp client initialization failed.');
       state = 'disconnected';
       qr = null;
       pushname = null;
