@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-require'vendor_twilio/autoload.php';
+require base_path("vendor_twilio/autoload.php");
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail; // For email

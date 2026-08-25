@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-require 'vendor_phpmailer/autoload.php';
+require base_path("vendor_phpmailer/autoload.php");
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
