@@ -773,6 +773,28 @@ h5#exampleModalLabel {
                 </div>
               </div>
             </div>
+            <div class="whatsapp-report-controls" data-whatsapp-report data-whatsapp-report-modal="#exampleModalReport_new" data-whatsapp-url="{{ route('whatsapp.send-report') }}">
+              <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                  <label class="form-label" for="inactiveWhatsappReportPhone">WhatsApp number</label>
+                  <input type="tel" id="inactiveWhatsappReportPhone" class="form-control" data-whatsapp-phone value="{{ Auth::user()->phone }}">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label" for="inactiveWhatsappReportFormat">Format</label>
+                  <select id="inactiveWhatsappReportFormat" class="form-select" data-whatsapp-format>
+                    <option value="text">Text</option>
+                    <option value="image">Image</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <button type="button" class="btn btn-success w-100" data-whatsapp-send>
+                    <i class="fa fa-whatsapp"></i> Send
+                  </button>
+                </div>
+              </div>
+              <div class="small mt-2 d-none" data-whatsapp-feedback aria-live="polite"></div>
+            </div>
             <div class="modal-footer report-footer">
               <a href="{{ route('ActivegenerateReportPDF', ['companyID' => request('companyID'), 'user_id' => Auth::user()->user_id]) }}" 
    type="button" class="btn btn-primary print">

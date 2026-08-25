@@ -159,6 +159,14 @@
                 <span class="menu-text current-page">User Company Access</span>
               </a>
             </li>
+            @if(Auth::user()->is_superadmin)
+            <li class="WhatsApp_li">
+              <a href="{{ route('whatsapp.settings') }}">
+              <i class="fa fa-whatsapp"></i>
+                <span class="menu-text current-page">WhatsApp</span>
+              </a>
+            </li>
+            @endif
           </ul>
         </div>
       </div>

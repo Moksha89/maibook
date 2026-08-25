@@ -633,6 +633,13 @@ tr.table-pink td {
                             </div>
 
 @endif
+@if(Auth::user()->is_admin || Auth::user()->is_superadmin)
+                                <a href="{{ route('whatsapp.settings') }}" class="whatsapp-settings-link">
+                                    <div class="settling-users">
+                                        <i class="fa fa-whatsapp"></i> WhatsApp
+                                    </div>
+                                </a>
+@endif
                              @endif
 
 
@@ -692,6 +699,13 @@ tr.table-pink td {
                                         <i class="fa fa-gear"></i>
                                   </button>
                             </div>
+@if(Auth::user()->is_admin || Auth::user()->is_superadmin)
+                                <a href="{{ route('whatsapp.settings') }}" class="whatsapp-settings-link">
+                                    <div class="settling-users">
+                                        <i class="fa fa-whatsapp"></i> WhatsApp
+                                    </div>
+                                </a>
+@endif
                                 </div>
     </div>
   </div>
@@ -751,6 +765,28 @@ tr.table-pink td {
                 </div>
               </div>
             </div>
+            <div class="whatsapp-report-controls" data-whatsapp-report data-whatsapp-report-modal="#exampleModalReport" data-whatsapp-url="{{ route('whatsapp.send-report') }}">
+              <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                  <label class="form-label" for="whatsappReportPhone">WhatsApp number</label>
+                  <input type="tel" id="whatsappReportPhone" class="form-control" data-whatsapp-phone value="{{ Auth::user()->phone }}">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label" for="whatsappReportFormat">Format</label>
+                  <select id="whatsappReportFormat" class="form-select" data-whatsapp-format>
+                    <option value="text">Text</option>
+                    <option value="image">Image</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <button type="button" class="btn btn-success w-100" data-whatsapp-send>
+                    <i class="fa fa-whatsapp"></i> Send
+                  </button>
+                </div>
+              </div>
+              <div class="small mt-2 d-none" data-whatsapp-feedback aria-live="polite"></div>
+            </div>
             <div class="modal-footer report-footer">
               <a href="{{ route('generateReportPDF', ['companyID' => request('companyID'), 'user_id' => Auth::user()->user_id]) }}" type="button" class="btn btn-primary print">Print</a>
 
@@ -808,6 +844,8 @@ tr.table-pink td {
  @yield('content')
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="{{asset('js/whatsapp-report.js')}}"></script>
 
     <script>
        

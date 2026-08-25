@@ -1,3 +1,16 @@
+.whatsapp-report-controls {
+    border-top: 1px solid #dee2e6;
+    padding: 12px 0 0;
+}
+
+.whatsapp-report-controls .form-label {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.whatsapp-report-controls [data-whatsapp-send] {
+    white-space: nowrap;
+}
 .book-logo {
     text-align: center;
 }
