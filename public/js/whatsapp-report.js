@@ -2,12 +2,12 @@
     'use strict';
 
     function reportText(modal) {
-        var company = modal.querySelector('.add_report_class, .partner_add_report_class');
+        var title = modal.querySelector('.modal-title');
         var date = modal.querySelector('.report-date');
         var lines = [];
 
-        if (company && company.textContent.trim()) {
-            lines.push(company.textContent.trim());
+        if (title && title.textContent.trim()) {
+            lines.push(title.textContent.trim().replace(/\s+/g, ' '));
         }
         if (date && date.textContent.trim()) {
             lines.push(date.textContent.trim());
