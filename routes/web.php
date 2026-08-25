@@ -246,7 +246,9 @@ Route::middleware(['auth', 'whatsapp.admin'])->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::post('/wa/send-report', [WhatsappController::class, 'sendReport'])->name('whatsapp.send-report');
+    Route::post('/wa/send-report', [WhatsappController::class, 'sendReport'])
+        ->middleware('throttle:10,1')
+        ->name('whatsapp.send-report');
 });
 
 require __DIR__.'/auth.php';

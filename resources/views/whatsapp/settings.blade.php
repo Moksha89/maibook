@@ -55,6 +55,19 @@ document.addEventListener('DOMContentLoaded', function () {
         feedback.textContent = message;
     }
 
+    function startPolling() {
+        if (!pollTimer) {
+            pollTimer = window.setInterval(loadStatus, 3000);
+        }
+    }
+
+    function stopPolling() {
+        if (pollTimer) {
+            window.clearInterval(pollTimer);
+            pollTimer = null;
+        }
+    }
+
     function renderStatus(data) {
         state.textContent = data.state || 'disconnected';
         if (data.qr) {
@@ -76,12 +89,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (data.state === 'qr' || data.state === 'authenticated') {
-            if (!pollTimer) {
-                pollTimer = window.setInterval(loadStatus, 3000);
-            }
-        } else if (pollTimer) {
-            window.clearInterval(pollTimer);
-            pollTimer = null;
+            startPolling();
+        } else if (data.state === 'ready' || data.state === 'disconnected') {
+            stopPolling();
         }
     }
 
@@ -117,6 +127,7 @@ document.addEventListener('DOMContentLoaded', function () {
         loginButton.disabled = true;
         try {
             renderStatus(await request('{{ route('whatsapp.login') }}', { method: 'POST' }));
+            startPolling();
             feedback.className = 'alert d-none';
         } catch (error) {
             showFeedback(error.message, 'danger');
@@ -126,6 +137,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     logoutButton.addEventListener('click', async function () {
+        stopPolling();
         logoutButton.disabled = true;
         try {
             renderStatus(await request('{{ route('whatsapp.logout') }}', { method: 'POST' }));
