@@ -1,0 +1,18 @@
+{
+  "name": "maibook-whatsapp-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local WhatsApp bridge for Maibook",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "qrcode": "1.5.4",
+    "whatsapp-web.js": "1.34.7"
+  }
+}
