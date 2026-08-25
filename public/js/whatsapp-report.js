@@ -13,13 +13,24 @@
             lines.push(date.textContent.trim());
         }
 
-        modal.querySelectorAll('table tbody tr').forEach(function (row) {
-            var cells = Array.from(row.querySelectorAll('td'))
-                .map(function (cell) { return cell.textContent.trim().replace(/\s+/g, ' '); })
-                .filter(Boolean);
-            if (cells.length) {
-                lines.push(cells.join('  '));
+        modal.querySelectorAll('table').forEach(function (table) {
+            var label = table.getAttribute('data-whatsapp-label');
+            if (!label) {
+                var heading = table.querySelector('thead th');
+                label = heading ? heading.textContent.trim().replace(/\s+/g, ' ') : 'Report';
             }
+            if (label) {
+                lines.push('');
+                lines.push(label);
+            }
+            table.querySelectorAll('tbody tr').forEach(function (row) {
+                var cells = Array.from(row.querySelectorAll('td'))
+                    .map(function (cell) { return cell.textContent.trim().replace(/\s+/g, ' '); })
+                    .filter(Boolean);
+                if (cells.length) {
+                    lines.push(cells.join('  '));
+                }
+            });
         });
 
         return lines.join('\n');
@@ -38,7 +49,10 @@
     }
 
     function imageData(modal) {
-        var target = modal.querySelector('.modal-content');
+        var target = modal.querySelector('[data-whatsapp-capture]') || modal.querySelector('.modal-body');
+        if (!target || typeof window.html2canvas !== 'function') {
+            return Promise.reject(new Error('Unable to capture the report image.'));
+        }
         return window.html2canvas(target, {
             backgroundColor: '#ffffff',
             scale: 2,
@@ -73,6 +87,13 @@
             button.disabled = true;
             clearFeedback(control);
 
+            var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            if (!csrfMeta || !csrfMeta.content) {
+                feedback(control, 'Unable to send the report right now.', 'danger');
+                button.disabled = false;
+                return;
+            }
+
             var imagePromise = selectedFormat === 'image' || selectedFormat === 'both'
                 ? imageData(modal)
                 : Promise.resolve(null);
@@ -87,7 +108,7 @@
                         headers: {
                             'Accept': 'application/json',
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                            'X-CSRF-TOKEN': csrfMeta.content
                         },
                         body: JSON.stringify(payload)
                     });

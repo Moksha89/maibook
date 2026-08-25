@@ -86,10 +86,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function request(url, options) {
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (!csrfMeta || !csrfMeta.content) {
+            throw new Error('Unable to use WhatsApp controls right now.');
+        }
+
         const response = await fetch(url, Object.assign({
             headers: {
                 'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                'X-CSRF-TOKEN': csrfMeta.content
             }
         }, options || {}));
         const data = await response.json().catch(function () { return {}; });

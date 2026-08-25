@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
 
 @php
@@ -725,15 +726,16 @@ tr.table-pink td {
     <div class="modal fade report-mod-full" id="exampleModalReport" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="exampleModalLabel"><span class="add_report_class"></span>Setting Report</h5>
-              <h5 class="report-date">Date: {{date('d/m/y')}}</h5>
-            </div>
-            <div class="modal-body report-body">
+            <div data-whatsapp-capture>
+              <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel"><span class="add_report_class"></span>Setting Report</h5>
+                <h5 class="report-date">Date: {{date('d/m/y')}}</h5>
+              </div>
+              <div class="modal-body report-body">
               <div class="col-sm-6">
                 <div class="report-data-tb">
                     <div class="table-responsive">
-                    <table class="table custom-table table-bordered table-report-fst app-responsive-table app-responsive-table--compact">
+                    <table class="table custom-table table-bordered table-report-fst app-responsive-table app-responsive-table--compact" data-whatsapp-label="Positive balances">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Name</th>
@@ -750,7 +752,7 @@ tr.table-pink td {
               <div class="col-sm-6">
                 <div class="report-two-tb">
                     <div class="table-responsive">
-                    <table class="table custom-table table-bordered table-report-snd app-responsive-table app-responsive-table--compact">
+                    <table class="table custom-table table-bordered table-report-snd app-responsive-table app-responsive-table--compact" data-whatsapp-label="Negative balances">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Name</th>
@@ -763,6 +765,7 @@ tr.table-pink td {
                     </table>
                     </div>
                 </div>
+              </div>
               </div>
             </div>
             <div class="whatsapp-report-controls" data-whatsapp-report data-whatsapp-report-modal="#exampleModalReport" data-whatsapp-url="{{ route('whatsapp.send-report') }}">

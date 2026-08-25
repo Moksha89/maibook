@@ -715,15 +715,16 @@ h5#exampleModalLabel {
     <div class="modal fade report-mod-full" id="exampleModalReport_new" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="exampleModalLabel"><span class="partner_add_report_class"></span>Total InActive Users</h5>
-              <h5 class="report-date">Date: {{date('d/m/y')}}</h5>
-            </div>
-            <div class="modal-body report-body">
+            <div data-whatsapp-capture>
+              <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel"><span class="partner_add_report_class"></span>Total InActive Users</h5>
+                <h5 class="report-date">Date: {{date('d/m/y')}}</h5>
+              </div>
+              <div class="modal-body report-body">
               <div class="col-sm-4">
                 <div class="report-data-tb">
                     <div class="table-responsive">
-                    <table class="table custom-table table-bordered new_table-report-fst app-responsive-table app-responsive-table--compact">
+                    <table class="table custom-table table-bordered new_table-report-fst app-responsive-table app-responsive-table--compact" data-whatsapp-label="Positive balances">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Inactive Users</th>
@@ -741,7 +742,7 @@ h5#exampleModalLabel {
               <div class="col-sm-4">
                 <div class="report-two-tb">
                     <div class="table-responsive">
-                    <table class="table custom-table table-bordered new_table-report-snd app-responsive-table app-responsive-table--compact">
+                    <table class="table custom-table table-bordered new_table-report-snd app-responsive-table app-responsive-table--compact" data-whatsapp-label="Negative balances">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Inactive Users</th>
@@ -758,7 +759,7 @@ h5#exampleModalLabel {
               <div class="col-sm-4">
                 <div class="report-two-tb">
                     <div class="table-responsive">
-                    <table class="table custom-table table-bordered new_table-report-third app-responsive-table app-responsive-table--compact">
+                    <table class="table custom-table table-bordered new_table-report-third app-responsive-table app-responsive-table--compact" data-whatsapp-label="Zero balances">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Inactive Users</th>
@@ -771,6 +772,7 @@ h5#exampleModalLabel {
                     </table>
                     </div>
                 </div>
+              </div>
               </div>
             </div>
             <div class="whatsapp-report-controls" data-whatsapp-report data-whatsapp-report-modal="#exampleModalReport_new" data-whatsapp-url="{{ route('whatsapp.send-report') }}">

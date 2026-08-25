@@ -243,6 +243,9 @@ Route::middleware(['auth', 'whatsapp.admin'])->group(function () {
     Route::get('/wa/status', [WhatsappController::class, 'status'])->name('whatsapp.status');
     Route::post('/wa/login', [WhatsappController::class, 'login'])->name('whatsapp.login');
     Route::post('/wa/logout', [WhatsappController::class, 'logout'])->name('whatsapp.logout');
+});
+
+Route::middleware('auth')->group(function () {
     Route::post('/wa/send-report', [WhatsappController::class, 'sendReport'])->name('whatsapp.send-report');
 });
 
