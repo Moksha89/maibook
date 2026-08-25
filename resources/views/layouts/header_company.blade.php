@@ -815,7 +815,7 @@ tr.table-pink td {
             <div class="login-div setting-div">
                
                     <div class="form-group">
-                        <input type="hidden" name="company_id" value="{{$_GET['companyID']}}">
+                        <input type="hidden" name="company_id" value="{{ request('companyID') }}">
                         <input type="text" class="form-control" name="name" value="{{$response['company']['name']}}" id="exampleInputEmail1" placeholder="">
                         <label class="floating-label"  for="exampleInputEmail1"><i class='fas fa-city'></i>Edit Company Name</label>
                     </div>

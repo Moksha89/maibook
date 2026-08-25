@@ -2318,7 +2318,7 @@ $('#error').text('');
         const partnerId = $(this).data('partner_id'); // Get the partner_id from the list
         const userId = $(this).data('user_id'); // Get the user_id from the list
 
-        const companyID = "{{ $_GET['companyID'] }}"; // Assuming you have companyID in the URL
+        const companyID = @json(request('companyID'));
 
         // Check if inputStr matches the partner's name
         if (partnerName === inputStr) {
@@ -2365,7 +2365,7 @@ function get_report(){
      
   const partnerId = $('#product_id').val();
 
-     const companyID = "{{ $_GET['companyID'] }}"; 
+        const companyID = @json(request('companyID'));
             $.ajax({
                 url: "{{ route('company-info-ajax') }}", // Replace with your actual route for fetching company info
                 method: "GET",
@@ -2776,7 +2776,7 @@ let backspaceTimeout2;
 <script>
     // Define the predefined suggestions array (initial value)
     let predefinedSuggestions3 = [];
-   const companyID = "{{ $_GET['companyID'] }}"; 
+        const companyID = @json(request('companyID'));
     // AJAX call to fetch the remarks dynamically
     $.ajax({
         url: "{{route('remarks')}}",  // Replace with the correct URL to your get_remarks route
