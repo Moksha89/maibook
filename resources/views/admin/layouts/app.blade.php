@@ -6,6 +6,7 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <title>{{ config('app.name', 'Laravel') }}</title>
+        <link rel="stylesheet" href="{{ asset('css/style.css') }}">
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -32,5 +33,6 @@
                 {{ $slot }}
             </main>
         </div>
+        <script src="{{ asset('js/form-navigation.js') }}"></script>
     </body>
 </html>

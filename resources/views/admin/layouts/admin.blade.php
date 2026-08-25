@@ -57,6 +57,7 @@
   <!-- Main css -->
   <link rel="stylesheet" href="{{asset('assets_admin/css/main.min.css')}}">
   <link rel="stylesheet" href="{{asset('assets_admin/css/custom-css.css')}}">
+  <link rel="stylesheet" href="{{asset('css/style.css')}}">
   <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.css">
   <link rel="stylesheet" href="{{asset('assets_admin/css/mibook-theme.css')}}?v={{ time() }}">
 
@@ -354,6 +355,7 @@
 
       @stack('datatable-scripts')
 @yield('scripts')
+<script src="{{asset('js/form-navigation.js')}}"></script>
 
 <!-- Dark mode toggle script -->
 <script>
