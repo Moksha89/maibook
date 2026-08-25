@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Company;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -65,6 +66,16 @@ class User extends Authenticatable
         return $this->hasMany(UserCompanyAccess::class, 'user_id', 'id');
     }
 
+    public function accessLevelFor(Company $company): ?string
+    {
+        if ($this->is_superadmin || $this->is_admin) {
+            return 'full';
+        }
+
+        return $this->companyAccess()
+            ->where('company_id', $company->id)
+            ->value('access_level');
+    }
 
 
 

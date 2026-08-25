@@ -13,6 +13,8 @@ use Illuminate\View\View;
 use Illuminate\Support\Str;
 
 use Illuminate\Support\Facades\Response; // For using Response::json
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use App\Models\Transaction;
 use App\Models\Partner;
 use App\Models\UserCompanyAccess;
@@ -258,28 +260,12 @@ public function getCompanyInfobyuser(Request $request)
 
 
 
- if(Auth::user()->is_admin)
-        {
-          $access_level="full";
-        }
-        else
-        {
-
-
-$c_id=Company::where('company_id',$company_id)->first();
-
-            //get from db
-            $gg=UserCompanyAccess::where('company_id',$c_id->id)->where('user_id',Auth::user()->id)->first();
-            if($gg)
-            {
-                $access_level=$gg->access_level;
+            $c_id = Company::where('company_id', $company_id)->first();
+            $access_level = $c_id ? Auth::user()->accessLevelFor($c_id) : null;
+            if ($access_level === null) {
+                abort(403);
             }
-            else
-            {
-                $access_level="read";
-            }
-
-        }
+            $request->merge(['companyNumericId' => $c_id->id]);
 
 
 
@@ -326,8 +312,11 @@ $c_id=Company::where('company_id',$company_id)->first();
             return view('companydetailsinactive',compact('response'));
 
         } catch (Exception $e) {
-            // Catch any exceptions and return an error message
-            return Response::json(['error' => 'Database error: ' . $e->getMessage()], 500);
+            if ($e instanceof HttpExceptionInterface) {
+                throw $e;
+            }
+            Log::error('Unable to retrieve inactive company information.', ['exception' => $e]);
+            return Response::json(['error' => 'Unable to retrieve company information.'], 500);
         }
     }
 
@@ -359,28 +348,12 @@ public function getCompanyInfo(Request $request)
 
 
 
- if(Auth::user()->is_admin)
-        {
-          $access_level="full";
-        }
-        else
-        {
-
-
-$c_id=Company::where('company_id',$company_id)->first();
-
-            //get from db
-            $gg=UserCompanyAccess::where('company_id',$c_id->id)->where('user_id',Auth::user()->id)->first();
-            if($gg)
-            {
-                $access_level=$gg->access_level;
+            $c_id = Company::where('company_id', $company_id)->first();
+            $access_level = $c_id ? Auth::user()->accessLevelFor($c_id) : null;
+            if ($access_level === null) {
+                abort(403);
             }
-            else
-            {
-                $access_level="read";
-            }
-
-        }
+            $request->merge(['companyNumericId' => $c_id->id]);
 
 
 
@@ -431,8 +404,11 @@ usort($active_partners, function($a, $b) {
             return view('companydetails',compact('response'));
 
         } catch (Exception $e) {
-            // Catch any exceptions and return an error message
-            return Response::json(['error' => 'Database error: ' . $e->getMessage()], 500);
+            if ($e instanceof HttpExceptionInterface) {
+                throw $e;
+            }
+            Log::error('Unable to retrieve company information.', ['exception' => $e]);
+            return Response::json(['error' => 'Unable to retrieve company information.'], 500);
         }
     }
 
@@ -463,28 +439,11 @@ public function getCompanyInfoajax(Request $request)
 
 
 
- if(Auth::user()->is_admin)
-        {
-          $access_level="full";
-        }
-        else
-        {
-
-
-$c_id=Company::where('company_id',$company_id)->first();
-
-            //get from db
-            $gg=UserCompanyAccess::where('company_id',$c_id->id)->where('user_id',Auth::user()->id)->first();
-            if($gg)
-            {
-                $access_level=$gg->access_level;
+            $c_id = Company::where('company_id', $company_id)->first();
+            $access_level = $c_id ? Auth::user()->accessLevelFor($c_id) : null;
+            if ($access_level === null) {
+                return Response::json(['message' => 'You are not authorized to access this company.'], 403);
             }
-            else
-            {
-                $access_level="read";
-            }
-
-        }
 
 
 
@@ -539,8 +498,8 @@ foreach ($partners as $partner) {
             
 
         } catch (Exception $e) {
-            // Catch any exceptions and return an error message
-            return Response::json(['error' => 'Database error: ' . $e->getMessage()], 500);
+            Log::error('Unable to retrieve company information asynchronously.', ['exception' => $e]);
+            return Response::json(['error' => 'Unable to retrieve company information.'], 500);
         }
     }
 
@@ -828,6 +787,15 @@ public function getCompanyPartners(Request $request)
     }
 
     try {
+        $company = Company::where('company_id', $companyId)->first();
+        if (!$company) {
+            return response()->json(['error' => 'Company not found.'], 404);
+        }
+
+        if (Auth::user()->accessLevelFor($company) === null) {
+            return response()->json(['message' => 'You are not authorized to access this company.'], 403);
+        }
+
         // Fetch all active partners for the given company
         $partners = Partner::select('partners.name as partner_name', 'partners.balance as total_balance')
             ->join('company_assignments', 'partners.uuid', '=', 'company_assignments.partner_id')
@@ -879,8 +847,8 @@ public function getCompanyPartners(Request $request)
         return response()->json($response, 200);
 
     } catch (\Exception $e) {
-        // Handle database errors
-        return response()->json(['error' => 'Database error: ' . $e->getMessage()], 500);
+        Log::error('Unable to retrieve company partners.', ['exception' => $e]);
+        return response()->json(['error' => 'Unable to retrieve company partners.'], 500);
     }
 }
 

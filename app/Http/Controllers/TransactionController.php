@@ -13,10 +13,11 @@ use Exception;
 require base_path('vendor_pdf/autoload.php');
 use Mpdf\Mpdf;
 use Illuminate\Http\JsonResponse;
-use App\Models\UserCompanyAccess;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Company;
 use Illuminate\Support\Facades\Response; // For using Response::json
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class TransactionController extends Controller
 {
@@ -151,8 +152,8 @@ $this->calculateBalance($prevProductId, $request);
 
         return response()->json(['message' => 'Transaction processed successfully.'], 200);
     } catch (\Exception $e) {
-        
-        return response()->json(['error' => $e->getMessage()], 400);
+        Log::error('Unable to retrieve transaction remarks.', ['exception' => $e]);
+        return response()->json(['error' => 'Unable to retrieve transaction remarks.'], 400);
     }
     }
 
@@ -663,7 +664,8 @@ $this->calculateBalance($transaction->product_id, $request);
 
             return response()->json(['success' => true, 'message' => 'Transaction deleted and balances updated successfully!']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred while updating balances: ' . $e->getMessage()], 500);
+            Log::error('Unable to delete transaction.', ['exception' => $e]);
+            return response()->json(['error' => 'An error occurred while updating balances.'], 500);
         }
     }
 
@@ -723,7 +725,8 @@ $this->calculateBalance($transaction->product_id, $request);
 
             return response()->json(['success' => true, 'message' => 'Transaction Restored and balances updated successfully!']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred while updating balances: ' . $e->getMessage()], 500);
+            Log::error('Unable to restore transaction.', ['exception' => $e]);
+            return response()->json(['error' => 'An error occurred while updating balances.'], 500);
         }
     }
 
@@ -783,7 +786,8 @@ $transaction->delete();
 
             return response()->json(['success' => true, 'message' => 'Transaction Parmanently deleted and balances updated successfully!']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred while updating balances: ' . $e->getMessage()], 500);
+            Log::error('Unable to permanently delete transaction.', ['exception' => $e]);
+            return response()->json(['error' => 'An error occurred while updating balances.'], 500);
         }
     }
 
@@ -824,28 +828,12 @@ public function get_partners(Request $request)
             }
 
 
-        if(Auth::user()->is_admin)
-        {
-          $access_level="full";
+        $c_id = Company::where('company_id', $company_id)->first();
+        $access_level = $c_id ? Auth::user()->accessLevelFor($c_id) : null;
+        if ($access_level === null) {
+            abort(403);
         }
-        else
-        {
-
-$c_id=Company::where('company_id',$company_id)->first();
-
-            //get from db
-            $gg=UserCompanyAccess::where('company_id',$c_id->id)->where('user_id',Auth::user()->id)->first();
-        
-            if($gg)
-            {
-                $access_level=$gg->access_level;
-            }
-            else
-            {
-                $access_level="read";
-            }
-
-        }
+        $request->merge(['companyNumericId' => $c_id->id]);
 
             // Retrieve active and inactive partners with balances
             $partners = DB::table('partners as p')
@@ -890,8 +878,11 @@ $c_id=Company::where('company_id',$company_id)->first();
             return view('partners',compact('response'));
 
         } catch (Exception $e) {
-            // Catch any exceptions and return an error message
-            return Response::json(['error' => 'Database error: ' . $e->getMessage()], 500);
+            if ($e instanceof HttpExceptionInterface) {
+                throw $e;
+            }
+            Log::error('Unable to retrieve partner company information.', ['exception' => $e]);
+            return Response::json(['error' => 'Unable to retrieve company information.'], 500);
         }
 
 

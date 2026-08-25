@@ -601,7 +601,7 @@ tr.table-pink td {
                                   <div class="logout-btn">
 
 
-                                    <a href="{{ route('company-info', ['companyID' => request()->query('companyID')]) }}" id="settling" >
+                                    <a href="{{ request('companyNumericId') ? route('company.short', ['id' => request('companyNumericId')]) : route('company-info', ['companyID' => request('companyID')]) }}" id="settling" >
                                     <div class="settling-pen">
                                         
                                             <i class='fas fa-pen'></i> Settling
@@ -616,7 +616,7 @@ tr.table-pink td {
                                     </div>
 @if($response['company']['access_level']=='full')
 
-                                    <a href="{{ route('partners', ['companyID' => request()->query('companyID')]) }}" id="users">
+                                    <a href="{{ route('partners', ['companyID' => request('companyID')]) }}" id="users">
                                     <div class="settling-users">
                                        
 
@@ -665,13 +665,13 @@ tr.table-pink td {
     </button>
     <div class="offcanvas offcanvas-end text-bg-dark" tabindex="-1" id="offcanvasDarkNavbar" aria-labelledby="offcanvasDarkNavbarLabel">
       <div class="offcanvas-header">
-         <a class="navbar-brand" href="{{ route('company-info', ['companyID' => request()->query('companyID')]) }}"><img src="{{$logoUrl}}" height="25" width="25"><span class="head_company">mibook.dev</span></a>
+         <a class="navbar-brand" href="{{ request('companyNumericId') ? route('company.short', ['id' => request('companyNumericId')]) : route('company-info', ['companyID' => request('companyID')]) }}"><img src="{{$logoUrl}}" height="25" width="25"><span class="head_company">mibook.dev</span></a>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
        <div class="logout-btn">
 
 
-                                    <a href="{{ route('company-info', ['companyID' => request()->query('companyID')]) }}" id="settling" >
+                                    <a href="{{ request('companyNumericId') ? route('company.short', ['id' => request('companyNumericId')]) : route('company-info', ['companyID' => request('companyID')]) }}" id="settling" >
                                     <div class="settling-pen">
                                         
                                             <i class='fas fa-pen'></i> Settling
@@ -686,7 +686,7 @@ tr.table-pink td {
                                     </div>
 
 
-                                    <a href="{{ route('partners', ['companyID' => request()->query('companyID')]) }}" id="users">
+                                    <a href="{{ route('partners', ['companyID' => request('companyID')]) }}" id="users">
                                     <div class="settling-users">
                                        
 
@@ -879,8 +879,7 @@ tr.table-pink td {
 <script>
 $(document).ready(function () {
     // Get the companyID from the URL query string
-    const urlParams = new URLSearchParams(window.location.search);
-    const companyID = urlParams.get('companyID');
+    const companyID = @json(request('companyID'));
 
     if (!companyID) {
         alert("Company ID is required.");

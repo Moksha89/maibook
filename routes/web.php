@@ -14,6 +14,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\BackupEmailController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\WhatsappController;
+use App\Models\Company;
 use Illuminate\Support\Facades\Mail; 
 use Illuminate\Support\Facades\Auth;
 
@@ -104,6 +105,17 @@ Route::post('/create-company', [CompanyController::class, 'createCompany'])->nam
 Route::post('/companies/edit/', [CompanyController::class, 'editCompany'])->name('edit-company');
 Route::patch('/companies/inactive/{id}', [CompanyController::class, 'makeInactive'])->name('make-inactive');
 Route::patch('/companies/active/{id}', [CompanyController::class, 'makeactive'])->name('make-active');
+Route::get('/c/{id}', function (Request $request, $id) {
+    $company = Company::findOrFail($id);
+    $request->merge([
+        'companyID' => $company->company_id,
+        'companyNumericId' => $company->id,
+    ]);
+    $request->query->set('companyID', $company->company_id);
+    $request->query->set('companyNumericId', $company->id);
+
+    return app(CompanyController::class)->getCompanyInfo($request);
+})->whereNumber('id')->name('company.short');
 Route::get('/company-info', [CompanyController::class, 'getCompanyInfo'])->name('company-info');
 
 Route::get('/company-info-inactive', [CompanyController::class, 'getCompanyInfobyuser'])->name('company-info-inactive');
