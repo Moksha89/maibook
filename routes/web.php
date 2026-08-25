@@ -13,6 +13,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\BackupEmailController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\WhatsappController;
 use Illuminate\Support\Facades\Mail; 
 use Illuminate\Support\Facades\Auth;
 
@@ -235,6 +236,14 @@ Route::get('/api/company-assignments', [AdminController::class, 'api_company_ass
 Route::get('/api/user-company-access', [AdminController::class, 'api_user_company_access'])->name('api.user_company_access');
 Route::get('/api/users', [AdminController::class, 'api_users'])->name('api.users');
 
+});
+
+Route::middleware(['auth', 'whatsapp.admin'])->group(function () {
+    Route::get('/wa', [WhatsappController::class, 'settings'])->name('whatsapp.settings');
+    Route::get('/wa/status', [WhatsappController::class, 'status'])->name('whatsapp.status');
+    Route::post('/wa/login', [WhatsappController::class, 'login'])->name('whatsapp.login');
+    Route::post('/wa/logout', [WhatsappController::class, 'logout'])->name('whatsapp.logout');
+    Route::post('/wa/send-report', [WhatsappController::class, 'sendReport'])->name('whatsapp.send-report');
 });
 
 require __DIR__.'/auth.php';
