@@ -680,7 +680,7 @@ h5#exampleModalLabel {
         </div>
         <div class="modal-body remove-extra">
             <div class="table-responsive">
-                <table id="inactive_table" class="app-responsive-table">
+                <table id="inactive_table" class="app-responsive-table app-responsive-table--compact">
                     <thead class="remove-after">
                         <tr class="header-row">
                             <th>S/N</th>
@@ -723,7 +723,7 @@ h5#exampleModalLabel {
               <div class="col-sm-4">
                 <div class="report-data-tb">
                     <div class="table-responsive">
-                    <table class="table custom-table table-bordered new_table-report-fst app-responsive-table">
+                    <table class="table custom-table table-bordered new_table-report-fst app-responsive-table app-responsive-table--compact">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Inactive Users</th>
@@ -741,7 +741,7 @@ h5#exampleModalLabel {
               <div class="col-sm-4">
                 <div class="report-two-tb">
                     <div class="table-responsive">
-                    <table class="table custom-table table-bordered new_table-report-snd app-responsive-table">
+                    <table class="table custom-table table-bordered new_table-report-snd app-responsive-table app-responsive-table--compact">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Inactive Users</th>
@@ -758,7 +758,7 @@ h5#exampleModalLabel {
               <div class="col-sm-4">
                 <div class="report-two-tb">
                     <div class="table-responsive">
-                    <table class="table custom-table table-bordered new_table-report-third app-responsive-table">
+                    <table class="table custom-table table-bordered new_table-report-third app-responsive-table app-responsive-table--compact">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Inactive Users</th>

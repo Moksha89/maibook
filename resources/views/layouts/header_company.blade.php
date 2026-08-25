@@ -719,7 +719,7 @@ tr.table-pink td {
               <div class="col-sm-6">
                 <div class="report-data-tb">
                     <div class="table-responsive">
-                    <table class="table custom-table table-bordered table-report-fst app-responsive-table">
+                    <table class="table custom-table table-bordered table-report-fst app-responsive-table app-responsive-table--compact">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Name</th>
@@ -736,7 +736,7 @@ tr.table-pink td {
               <div class="col-sm-6">
                 <div class="report-two-tb">
                     <div class="table-responsive">
-                    <table class="table custom-table table-bordered table-report-snd app-responsive-table">
+                    <table class="table custom-table table-bordered table-report-snd app-responsive-table app-responsive-table--compact">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Name</th>

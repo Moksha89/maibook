@@ -521,7 +521,7 @@ section.overview-sec {
         </div>
         <div class="modal-body remove-extra">
             <div class="table-responsive">
-                <table id="inactivecompaniesTable" class="app-responsive-table">
+                <table id="inactivecompaniesTable" class="app-responsive-table app-responsive-table--compact">
                     <thead class="remove-after">
                         <tr class="header-row">
                             <th></th>

@@ -149,6 +149,10 @@ td {
     margin-bottom: 0;
 }
 
+.table-responsive > .app-responsive-table.app-responsive-table--compact {
+    min-width: 280px;
+}
+
 .app-responsive-table th,
 .app-responsive-table td {
     max-width: 20rem;
@@ -173,8 +177,7 @@ td {
 .app-responsive-table td:last-child > .flx_radio_key,
 .app-responsive-table td:last-child > .btn-action,
 .app-responsive-table td:last-child > .action-buttons,
-.app-responsive-table td:last-child > .btn-group,
-.app-responsive-table td:last-child > div {
+.app-responsive-table td:last-child > .btn-group {
     display: flex;
     flex-wrap: wrap;
     align-items: center;

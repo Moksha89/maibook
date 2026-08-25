@@ -2103,7 +2103,7 @@ h2 {
                                 <div id="list-view" class="tab-pane fade backup-table table-viwe">
                                     <div class="modal-body">
                                         <div class="table-responsive">
-                                        <table id="example" class="table table-striped app-responsive-table" style="width:100%">
+                                        <table id="example" class="table table-striped app-responsive-table app-responsive-table--compact" style="width:100%">
                                             <thead>
                                               <tr>
                                                 <th>S/N</th>
