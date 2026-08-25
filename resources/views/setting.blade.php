@@ -2102,7 +2102,8 @@ h2 {
                 
                                 <div id="list-view" class="tab-pane fade backup-table table-viwe">
                                     <div class="modal-body">
-                                        <table id="example" class="table table-striped" style="width:100%">
+                                        <div class="table-responsive">
+                                        <table id="example" class="table table-striped app-responsive-table" style="width:100%">
                                             <thead>
                                               <tr>
                                                 <th>S/N</th>
@@ -2147,7 +2148,8 @@ h2 {
                                             
                                               <!-- Add more rows as needed -->
                                             </tbody>
-                                          </table>
+                                        </table>
+                                        </div>
                                 
                                 </div>
                                 </div>

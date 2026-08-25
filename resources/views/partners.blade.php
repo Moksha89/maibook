@@ -679,7 +679,8 @@ h5#exampleModalLabel {
           <h1 class="modal-title fs-5" id="staticBackdropLabel">Inactive Users</h1>
         </div>
         <div class="modal-body remove-extra">
-                <table  id="inactive_table">
+            <div class="table-responsive">
+                <table id="inactive_table" class="app-responsive-table">
                     <thead class="remove-after">
                         <tr class="header-row">
                             <th>S/N</th>
@@ -694,6 +695,7 @@ h5#exampleModalLabel {
                     <tbody>
                     </tbody>
                 </table>
+            </div>
         
         </div>
         <div class="modal-footer company-table-footer">
@@ -720,7 +722,8 @@ h5#exampleModalLabel {
             <div class="modal-body report-body">
               <div class="col-sm-4">
                 <div class="report-data-tb">
-                    <table class="table custom-table table-bordered new_table-report-fst">
+                    <div class="table-responsive">
+                    <table class="table custom-table table-bordered new_table-report-fst app-responsive-table">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Inactive Users</th>
@@ -732,11 +735,13 @@ h5#exampleModalLabel {
                            
                         </tbody>
                     </table>
+                    </div>
                 </div>
               </div>
               <div class="col-sm-4">
                 <div class="report-two-tb">
-                    <table class="table custom-table table-bordered new_table-report-snd">
+                    <div class="table-responsive">
+                    <table class="table custom-table table-bordered new_table-report-snd app-responsive-table">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Inactive Users</th>
@@ -747,11 +752,13 @@ h5#exampleModalLabel {
                            
                         </tbody>
                     </table>
+                    </div>
                 </div>
               </div>
               <div class="col-sm-4">
                 <div class="report-two-tb">
-                    <table class="table custom-table table-bordered new_table-report-third">
+                    <div class="table-responsive">
+                    <table class="table custom-table table-bordered new_table-report-third app-responsive-table">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Inactive Users</th>
@@ -762,6 +769,7 @@ h5#exampleModalLabel {
                            
                         </tbody>
                     </table>
+                    </div>
                 </div>
               </div>
             </div>
@@ -833,8 +841,8 @@ h5#exampleModalLabel {
             <div class="row">
                 <div class="col-sm-12">
                     <div class="data-table-new">
-
-                        <table id="partners_table" class="table table-striped table-bordered">
+                        <div class="table-responsive">
+                        <table id="partners_table" class="table table-striped table-bordered app-responsive-table">
     <thead>
         <tr>
             <th>S/N</th>
@@ -849,7 +857,8 @@ h5#exampleModalLabel {
     <tbody>
         <!-- DataTables will handle this -->
     </tbody>
-</table>
+                        </table>
+                        </div>
 
 
                     </div>

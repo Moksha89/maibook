@@ -24,7 +24,7 @@
 
         <div class="custom-tabs-container request-tab-all">
             <div class="table-responsive">
-                <table id="example" class="table table-striped" style="width:100%">
+                <table id="example" class="table table-striped app-responsive-table" style="width:100%">
                     <thead>
                         <tr>
                             <th>S/N</th>

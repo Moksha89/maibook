@@ -1322,8 +1322,8 @@ input.form-control:not(:placeholder-shown) + .floating-label {
                         <p class="clossing" >Closing Balance:<span id="closing_bal"> 0</span></p>
                     </div>  
                     <div class="data-table-new">
-
-<table id="transactionstable" class="table table-striped table-bordered">
+                        <div class="table-responsive">
+<table id="transactionstable" class="table table-striped table-bordered app-responsive-table">
     <thead>
         <tr>
             <th>S/N</th>
@@ -1341,6 +1341,7 @@ input.form-control:not(:placeholder-shown) + .floating-label {
         <!-- Rows will be appended here -->
     </tbody>
 </table>
+                        </div>
 <ul id="pagination" class="pagination">
     <!-- Pagination will be generated here -->
 </ul>

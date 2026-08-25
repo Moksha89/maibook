@@ -718,7 +718,8 @@ tr.table-pink td {
             <div class="modal-body report-body">
               <div class="col-sm-6">
                 <div class="report-data-tb">
-                    <table class="table custom-table table-bordered table-report-fst">
+                    <div class="table-responsive">
+                    <table class="table custom-table table-bordered table-report-fst app-responsive-table">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Name</th>
@@ -729,11 +730,13 @@ tr.table-pink td {
                            
                         </tbody>
                     </table>
+                    </div>
                 </div>
               </div>
               <div class="col-sm-6">
                 <div class="report-two-tb">
-                    <table class="table custom-table table-bordered table-report-snd">
+                    <div class="table-responsive">
+                    <table class="table custom-table table-bordered table-report-snd app-responsive-table">
                         <thead class="table custom-table">
                             <tr>
                                 <th>Name</th>
@@ -744,6 +747,7 @@ tr.table-pink td {
                            
                         </tbody>
                     </table>
+                    </div>
                 </div>
               </div>
             </div>
@@ -970,5 +974,6 @@ $(document).ready(function(){
 
 
 <link rel="stylesheet" href="{{asset('css/company-theme.css')}}">
+<script src="{{asset('js/form-navigation.js')}}"></script>
 </body>
 </html>

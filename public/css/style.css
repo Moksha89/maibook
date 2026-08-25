@@ -136,6 +136,65 @@ td {
     padding: 0px !important;
 }
 
+/* Shared responsive table treatment */
+.table-responsive {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive > .app-responsive-table {
+    width: 100% !important;
+    min-width: 680px;
+    margin-bottom: 0;
+}
+
+.app-responsive-table th,
+.app-responsive-table td {
+    max-width: 20rem;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.app-responsive-table th:first-child,
+.app-responsive-table td:first-child {
+    width: 4rem;
+    white-space: nowrap;
+}
+
+.app-responsive-table th:last-child,
+.app-responsive-table td:last-child {
+    width: 1%;
+    min-width: 7rem;
+    white-space: nowrap !important;
+}
+
+.app-responsive-table td:last-child > .flx_radio_key,
+.app-responsive-table td:last-child > .btn-action,
+.app-responsive-table td:last-child > .action-buttons,
+.app-responsive-table td:last-child > .btn-group,
+.app-responsive-table td:last-child > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+}
+
+.app-responsive-table td:last-child .btn {
+    margin: 0;
+}
+
+.table-load-error {
+    color: #842029;
+    background: #f8d7da;
+    border: 1px solid #f1aeb5;
+    border-radius: 0.25rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+}
+
 /* Mobile: up to 479px */
 @media (max-width: 479px) {
     .login-form-section .row {

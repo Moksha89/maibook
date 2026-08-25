@@ -520,7 +520,8 @@ section.overview-sec {
           <h1 class="modal-title fs-5" id="staticBackdropLabel">Inactive Companies</h1>
         </div>
         <div class="modal-body remove-extra">
-                <table  id="inactivecompaniesTable">
+            <div class="table-responsive">
+                <table id="inactivecompaniesTable" class="app-responsive-table">
                     <thead class="remove-after">
                         <tr class="header-row">
                             <th></th>
@@ -531,6 +532,7 @@ section.overview-sec {
                     </thead>
                     
                 </table>
+            </div>
         
         </div>
         <div class="modal-footer company-table-footer">
@@ -673,7 +675,8 @@ section.overview-sec {
                 <div id="list-view" class="tab-pane fade table-viwe">
                     <div class="modal-body">
                         <div class="table_companies">
-                        <table id="companiesTable" class="table table-striped" style="width:100%">
+                            <div class="table-responsive">
+                        <table id="companiesTable" class="table table-striped app-responsive-table" style="width:100%">
                             <thead>
                               <tr>
                                 <th></th>
@@ -685,7 +688,8 @@ section.overview-sec {
                               </tr>
                             </thead>
                             
-                          </table>
+                        </table>
+                            </div>
                       </div>
                 
                 </div>

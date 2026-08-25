@@ -17,7 +17,7 @@
 
         <div class="custom-tabs-container request-tab-all">
             <div class="table-responsive">
-                <table id="user_company_access_tbl" class="table table-striped" style="width:100%">
+                <table id="user_company_access_tbl" class="table table-striped app-responsive-table" style="width:100%">
                     <thead>
                         <tr>
                             <th>S/N</th>
