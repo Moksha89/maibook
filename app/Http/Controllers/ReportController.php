@@ -12,6 +12,7 @@ use App\Models\Partner;
 use App\Models\User;
 use App\Models\Company;
 use Auth;
+use Illuminate\Support\Facades\Log;
 
 class ReportController extends Controller
 {
@@ -90,8 +91,8 @@ foreach ($partners as $partner) {
         return response()->json($response, 200);
 
     } catch (\Exception $e) {
-        // Handle database errors
-        return response()->json(['error' => 'Database error: ' . $e->getMessage()], 500);
+        Log::error('Unable to generate report PDF.', ['exception' => $e]);
+        return response()->json(['error' => 'Unable to generate the report.'], 500);
     }
 }
 
@@ -443,4 +444,3 @@ public function updateTitle(Request $request)
 
 
 }
-

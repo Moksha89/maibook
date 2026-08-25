@@ -12,6 +12,7 @@ use App\Models\User; // Assuming you're using a User model
 use Illuminate\Support\Facades\Validator;
 use App\Services\OtpService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 use Illuminate\Support\Facades\Auth;
 
@@ -81,7 +82,8 @@ class AuthController extends Controller
             ]);
                 return response()->json(['success' => "OTP Successfully Sent to your Phone Number", 'redirect' => route('showVerifyPage',['username'=>$username])], 200);
             } catch (\Exception $e) {
-                return response()->json(['error' => "SMS sending failed: " . $e->getMessage()], 500);
+                Log::error('SMS sending failed.', ['exception' => $e]);
+                return response()->json(['error' => 'SMS sending failed.'], 500);
             }
         }
 

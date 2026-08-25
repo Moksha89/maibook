@@ -3,6 +3,8 @@
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -46,5 +48,24 @@ class Handler extends ExceptionHandler
         $this->reportable(function (Throwable $e) {
             //
         });
+    }
+
+    public function render($request, Throwable $e)
+    {
+        if (
+            ! $e instanceof ValidationException
+            && ($request->expectsJson() || $request->is('api/*') || $request->ajax())
+        ) {
+            $status = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
+            $message = match ($status) {
+                403 => 'You are not authorized to perform this action.',
+                404 => 'The requested resource was not found.',
+                default => 'An unexpected error occurred.',
+            };
+
+            return new JsonResponse(['message' => $message], $status);
+        }
+
+        return parent::render($request, $e);
     }
 }

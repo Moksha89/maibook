@@ -104,8 +104,9 @@ foreach ($backupEmails as $email) {
         $logMessage = '[' . now() . '] Backup not created successfully.' . PHP_EOL;
         file_put_contents(storage_path('app/backups/backup_log.txt'), $logMessage, FILE_APPEND);
           
+            Log::error('Backup creation failed.', ['exception' => $e]);
             return response()->json([
-                'error' => 'Backup failed: ' . $e->getMessage(),
+                'error' => 'Backup failed.',
             ], 500);
         }
     }
@@ -116,7 +117,8 @@ foreach ($backupEmails as $email) {
             // Use Laravel's Crypt facade to encrypt data
             return Crypt::encryptString($data);
         } catch (\Exception $e) {
-            throw new \Exception('Encryption failed: ' . $e->getMessage());
+            Log::error('Backup encryption failed.', ['exception' => $e]);
+            throw new \Exception('Encryption failed.');
         }
     }
 
@@ -203,7 +205,8 @@ $response = Http::get(url('/backup'), ['user_id' => $user_id]);
         return response()->json(['success' => 'Backup restored successfully.'], 200);
 
     } catch (Exception $e) {
-        return response()->json(['error' => 'Restore failed: ' . $e->getMessage()], 500);
+        Log::error('Backup restore failed.', ['exception' => $e]);
+        return response()->json(['error' => 'Restore failed.'], 500);
     }
 }
 
@@ -214,7 +217,8 @@ private function decryptData($data)
     try {
         return Crypt::decryptString($data);
     } catch (Exception $e) {
-        throw new Exception('Decryption failed: ' . $e->getMessage());
+        Log::error('Backup decryption failed.', ['exception' => $e]);
+        throw new Exception('Decryption failed.');
     }
 }
 
@@ -264,7 +268,7 @@ public function download($id)
 //         return back()->with('success', 'Backup uploaded successfully. File path: ' . $path);
 
 //     } catch (\Exception $e) {
-//         return back()->with('error', 'Failed to upload backup: ' . $e->getMessage());
+//         return back()->with('error', 'Failed to upload backup.');
 //     }
 // }
 
@@ -304,7 +308,8 @@ public function uploadBackup(Request $request)
         return back()->with('success', 'Backup uploaded successfully. File path: ' . $path);
 
     } catch (\Exception $e) {
-        return back()->with('error', 'Failed to upload backup: ' . $e->getMessage());
+        Log::error('Backup upload failed.', ['exception' => $e]);
+        return back()->with('error', 'Failed to upload backup.');
     }
 }
 
@@ -363,7 +368,8 @@ public function sendOtp(Request $request)
             ]);
                 return response()->json(['success' => "OTP Successfully Sent to your Phone Number"], 200);
             } catch (\Exception $e) {
-                return response()->json(['error' => "SMS sending failed: " . $e->getMessage()], 500);
+                Log::error('Backup SMS sending failed.', ['exception' => $e]);
+                return response()->json(['error' => 'SMS sending failed.'], 500);
             }
         }
 
