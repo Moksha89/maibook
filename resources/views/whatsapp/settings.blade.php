@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const loginButton = document.getElementById('whatsappLogin');
     const logoutButton = document.getElementById('whatsappLogout');
     let pollTimer = null;
+    let loginPendingUntil = 0;
 
     function showFeedback(message, type) {
         feedback.className = 'alert alert-' + type;
@@ -66,6 +67,11 @@ document.addEventListener('DOMContentLoaded', function () {
             window.clearInterval(pollTimer);
             pollTimer = null;
         }
+    }
+
+    function beginLoginPolling() {
+        loginPendingUntil = Date.now() + 60000;
+        startPolling();
     }
 
     function renderStatus(data) {
@@ -88,9 +94,16 @@ document.addEventListener('DOMContentLoaded', function () {
             account.classList.add('d-none');
         }
 
-        if (data.state === 'qr' || data.state === 'authenticated') {
+        if (data.state === 'ready') {
+            loginPendingUntil = 0;
+            stopPolling();
+        } else if (
+            data.state === 'qr' ||
+            data.state === 'authenticated' ||
+            (data.state === 'disconnected' && loginPendingUntil > Date.now())
+        ) {
             startPolling();
-        } else if (data.state === 'ready' || data.state === 'disconnected') {
+        } else if (data.state === 'disconnected') {
             stopPolling();
         }
     }
@@ -115,6 +128,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function loadStatus() {
+        if (loginPendingUntil && loginPendingUntil <= Date.now()) {
+            loginPendingUntil = 0;
+            stopPolling();
+            showFeedback('WhatsApp did not connect. Please retry.', 'warning');
+            return;
+        }
+
         try {
             renderStatus(await request('{{ route('whatsapp.status') }}', { method: 'GET' }));
         } catch (error) {
@@ -127,7 +147,7 @@ document.addEventListener('DOMContentLoaded', function () {
         loginButton.disabled = true;
         try {
             renderStatus(await request('{{ route('whatsapp.login') }}', { method: 'POST' }));
-            startPolling();
+            beginLoginPolling();
             feedback.className = 'alert d-none';
         } catch (error) {
             showFeedback(error.message, 'danger');
@@ -137,6 +157,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     logoutButton.addEventListener('click', async function () {
+        loginPendingUntil = 0;
         stopPolling();
         logoutButton.disabled = true;
         try {
