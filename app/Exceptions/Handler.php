@@ -2,8 +2,10 @@
 
 namespace App\Exceptions;
 
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Session\TokenMismatchException;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -56,14 +58,22 @@ class Handler extends ExceptionHandler
             ! $e instanceof ValidationException
             && ($request->expectsJson() || $request->is('api/*') || $request->ajax())
         ) {
-            $status = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
+            $status = match (true) {
+                $e instanceof AuthenticationException => 401,
+                $e instanceof TokenMismatchException => 419,
+                $this->isHttpException($e) => $e->getStatusCode(),
+                default => 500,
+            };
+
             $message = match ($status) {
+                401 => 'Your session has expired. Please sign in again.',
+                419 => 'Your session token is invalid or has expired. Please refresh and try again.',
                 403 => 'You are not authorized to perform this action.',
                 404 => 'The requested resource was not found.',
                 default => 'An unexpected error occurred.',
             };
 
-            return new JsonResponse(['message' => $message], $status);
+            return new JsonResponse(['message' => $message, 'error' => $message], $status);
         }
 
         return parent::render($request, $e);

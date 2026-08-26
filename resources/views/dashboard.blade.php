@@ -752,7 +752,7 @@ section.overview-sec {
                         data: 'name',
                         name: 'name',
                         render: function(data, type, row) {
-                            var companyInfoUrl = "{{ route('company.short', ':id') }}".replace(':id', row.id);
+                            var companyInfoUrl = "{{ url('/c') }}/" + row.id;
                             return `<a href="${companyInfoUrl}">${data}</a>`;
                         }
                     },
@@ -866,7 +866,7 @@ section.overview-sec {
                 success: function(response) {
                     $('.grid-temp-row').empty();
                     $.each(response, function(index, company) {
-                        var companyInfoUrl = "{{ route('company.short', ':id') }}".replace(':id', company.id);
+                        var companyInfoUrl = "{{ url('/c') }}/" + company.id;
                         var html = `
                             <div class="col-sm-4">
                                 <div class="vlbook-grid">
