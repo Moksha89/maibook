@@ -16,6 +16,16 @@ use Illuminate\Support\Facades\Log;
 
 class ReportController extends Controller
 {
+private function createPdf()
+{
+    $tempDir = storage_path('app/mpdf-temp');
+    if (!is_dir($tempDir)) {
+        mkdir($tempDir, 0775, true);
+    }
+
+    return new Mpdf(['tempDir' => $tempDir]);
+}
+
    public function generateReportPDF(Request $request)
 {
 
@@ -162,7 +172,7 @@ private function ActivegeneratePDF($company_name,$positive_balance_partners,$zer
 
 
 
- $mpdf = new \Mpdf\Mpdf();
+ $mpdf = $this->createPdf();
 
     // Current date
     $currentDate = date("Y-m-d");
@@ -248,7 +258,7 @@ private function generatePDF($positiveBalances, $negativeBalances,$companyName)
 
   
 
-    $mpdf = new \Mpdf\Mpdf();
+    $mpdf = $this->createPdf();
 
     // Current date
     $currentDate = date("Y-m-d");

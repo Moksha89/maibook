@@ -125,15 +125,16 @@ async function initializeClient() {
   });
 
   const initializePromise = activeClient.initialize()
-    .catch(() => {
+    .catch((error) => {
       if (client !== activeClient) {
         return;
       }
-      console.error('WhatsApp client initialization failed.');
+      console.error('WhatsApp client initialization failed.', error.name || 'Error');
       state = 'disconnected';
       qr = null;
       pushname = null;
       client = null;
+      return activeClient.destroy().catch(() => {});
     })
     .finally(() => {
       if (initializationPromise === initializePromise) {

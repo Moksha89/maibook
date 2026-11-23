@@ -873,7 +873,7 @@ h5.emp-del-title {
 
 /* DataTable wrapper */
 .dataTables_wrapper {
-  overflow-x: hidden !important;
+  overflow-x: auto !important;
 }
 
 table.dataTable {

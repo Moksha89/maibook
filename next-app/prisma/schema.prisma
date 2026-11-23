@@ -1,0 +1,830 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+}
+
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AccessLevel {
+  READ
+  FULL
+}
+
+enum PermissionEffect {
+  GRANT
+  DENY
+}
+
+enum OtpPurpose {
+  LOGIN
+  PASSWORD_RESET
+  BACKUP_RESTORE
+  SENSITIVE_ACTION
+}
+
+enum OtpStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  LOCKED
+}
+
+enum IdentifierType {
+  AGENT
+  SUB_AGENT
+}
+
+enum LedgerAccountType {
+  COMPANY
+  AGENT
+  UPLINE
+}
+
+enum LedgerEntryType {
+  OPENING_BALANCE
+  TRANSACTION
+  SETTLEMENT
+  MANUAL_AGENT
+  MANUAL_UPLINE
+  DISTRIBUTION
+  ADJUSTMENT
+}
+
+enum SettlementStatus {
+  POSTED
+  REVERSED
+}
+
+enum UplineEntrySource {
+  SETTLEMENT
+  MANUAL
+}
+
+enum ShareholderEntrySource {
+  SETTLEMENT_PROFIT
+  MANUAL_ADJUSTMENT
+}
+
+enum ReportType {
+  COMPANY_LEDGER
+  AGENT_LEDGER
+  SETTLEMENT
+  PROFIT_DISTRIBUTION
+  CUSTOM
+}
+
+enum ReportFormat {
+  PDF
+  PNG
+  CSV
+  TEXT
+  PRINT
+}
+
+enum ReportDeliveryMode {
+  TEXT
+  IMAGE
+  BOTH
+  EMAIL
+}
+
+enum DeliveryStatus {
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum WhatsAppConnectionStatus {
+  DISCONNECTED
+  INITIALIZING
+  QR_READY
+  CONNECTED
+  FAILED
+}
+
+enum BackupStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  VERIFIED
+  RESTORED
+}
+
+enum JobType {
+  GENERATE_REPORT
+  DELIVER_WHATSAPP
+  SEND_EMAIL
+  SEND_OTP
+  CREATE_BACKUP
+  VERIFY_BACKUP
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  legacyId            String?                  @unique @map("legacy_id")
+  username            String                   @unique
+  normalizedUsername  String                   @unique @map("normalized_username")
+  email               String?                  @unique
+  normalizedEmail     String?                  @unique @map("normalized_email")
+  phone               String?                  @unique
+  normalizedPhone     String?                  @unique @map("normalized_phone")
+  passwordHash        String                   @map("password_hash")
+  displayName         String                   @map("display_name")
+  status              UserStatus               @default(ACTIVE)
+  otpEnabled          Boolean                  @default(false) @map("otp_enabled")
+  maxDevices          Int                      @default(3) @map("max_devices")
+  expiresAt           DateTime?                @map("expires_at") @db.Timestamptz(6)
+  passwordChangedAt   DateTime                 @default(now()) @map("password_changed_at") @db.Timestamptz(6)
+  failedLoginAttempts Int                      @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?                @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt         DateTime?                @map("last_login_at") @db.Timestamptz(6)
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime?                @map("deleted_at") @db.Timestamptz(6)
+  roles               UserRole[]
+  permissionOverrides UserPermissionOverride[]
+  sessions            Session[]
+  devices             DeviceRegistration[]
+  otpChallenges       OtpChallenge[]
+  companyAccess       CompanyAccess[]
+  apiTokens           ApiToken[]
+  auditLogs           AuditLog[]
+
+  @@index([status, deletedAt])
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique
+  name        String           @unique
+  description String?
+  isSystem    Boolean          @default(false) @map("is_system")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String                   @id @default(uuid()) @db.Uuid
+  key         String                   @unique
+  module      String
+  action      String
+  description String?
+  createdAt   DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  roles       RolePermission[]
+  overrides   UserPermissionOverride[]
+
+  @@unique([module, action])
+  @@map("permissions")
+}
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserPermissionOverride {
+  userId       String           @map("user_id") @db.Uuid
+  permissionId String           @map("permission_id") @db.Uuid
+  effect       PermissionEffect
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission       @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permission_overrides")
+}
+
+model Session {
+  id         String              @id @default(uuid()) @db.Uuid
+  userId     String              @map("user_id") @db.Uuid
+  tokenHash  String              @unique @map("token_hash")
+  deviceId   String?             @map("device_id") @db.Uuid
+  ipAddress  String?             @map("ip_address")
+  userAgent  String?             @map("user_agent")
+  lastSeenAt DateTime            @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  expiresAt  DateTime            @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime?           @map("revoked_at") @db.Timestamptz(6)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device     DeviceRegistration? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@map("sessions")
+}
+
+model DeviceRegistration {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  fingerprint String
+  name        String?
+  firstSeenAt DateTime  @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions    Session[]
+
+  @@unique([userId, fingerprint])
+  @@map("device_registrations")
+}
+
+model OtpChallenge {
+  id         String     @id @default(uuid()) @db.Uuid
+  userId     String     @map("user_id") @db.Uuid
+  purpose    OtpPurpose
+  status     OtpStatus  @default(PENDING)
+  codeHash   String     @map("code_hash")
+  attempts   Int        @default(0)
+  expiresAt  DateTime   @map("expires_at") @db.Timestamptz(6)
+  verifiedAt DateTime?  @map("verified_at") @db.Timestamptz(6)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, status])
+  @@map("otp_challenges")
+}
+
+model ApiToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  name       String
+  tokenHash  String    @unique @map("token_hash")
+  scopes     String[]
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(6)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("api_tokens")
+}
+
+model LoginThrottle {
+  id          String    @id @default(uuid()) @db.Uuid
+  keyHash     String    @unique @map("key_hash")
+  attempts    Int       @default(0)
+  windowStart DateTime  @default(now()) @map("window_start") @db.Timestamptz(6)
+  lockedUntil DateTime? @map("locked_until") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([lockedUntil])
+  @@map("login_throttles")
+}
+
+model Company {
+  id                 String             @id @default(uuid()) @db.Uuid
+  legacyId           String?            @unique @map("legacy_id")
+  name               String
+  normalizedName     String             @unique @map("normalized_name")
+  slug               String             @unique
+  code               String?            @unique
+  status             CompanyStatus      @default(ACTIVE)
+  currency           String             @default("INR") @db.Char(3)
+  defaultRate        Decimal?           @map("default_rate") @db.Decimal(20, 8)
+  reportHeader       String?            @map("report_header")
+  reportFooter       String?            @map("report_footer")
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  userAccess         CompanyAccess[]
+  agents             CompanyAgent[]
+  ledgerEntries      LedgerEntry[]
+  ledgerLines        LedgerEntryLine[]
+  identifiers        AgentIdentifier[]
+  settlements        Settlement[]
+  uplines            Upline[]
+  uplineGroups       UplineGroup[]
+  uplineEntries      UplineEntry[]
+  shareholders       Shareholder[]
+  shareholderEntries ShareholderEntry[]
+  owners             Owner[]
+  reports            GeneratedReport[]
+  auditLogs          AuditLog[]
+
+  @@index([status, deletedAt])
+  @@map("companies")
+}
+
+model CompanyAccess {
+  userId    String      @map("user_id") @db.Uuid
+  companyId String      @map("company_id") @db.Uuid
+  level     AccessLevel
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, companyId])
+  @@index([companyId, level])
+  @@map("company_access")
+}
+
+model Agent {
+  id               String                 @id @default(uuid()) @db.Uuid
+  legacyId         String?                @unique @map("legacy_id")
+  name             String
+  normalizedName   String                 @unique @map("normalized_name")
+  phone            String?
+  email            String?
+  status           RecordStatus           @default(ACTIVE)
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  companies        CompanyAgent[]
+  ledgerLines      LedgerEntryLine[]
+  identifiers      AgentIdentifier[]
+  settlements      Settlement[]
+  ownerAssignments OwnerAgentAssignment[]
+
+  @@index([normalizedName])
+  @@map("agents")
+}
+
+model CompanyAgent {
+  companyId      String    @map("company_id") @db.Uuid
+  agentId        String    @map("agent_id") @db.Uuid
+  openingBalance Decimal   @default(0) @map("opening_balance") @db.Decimal(30, 8)
+  currentBalance Decimal   @default(0) @map("current_balance") @db.Decimal(30, 8)
+  assignedAt     DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  removedAt      DateTime? @map("removed_at") @db.Timestamptz(6)
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  agent          Agent     @relation(fields: [agentId], references: [id], onDelete: Restrict)
+
+  @@id([companyId, agentId])
+  @@index([agentId, removedAt])
+  @@map("company_agents")
+}
+
+model LedgerEntry {
+  id             String            @id @default(uuid()) @db.Uuid
+  legacyId       String?           @unique @map("legacy_id")
+  companyId      String            @map("company_id") @db.Uuid
+  entryType      LedgerEntryType   @map("entry_type")
+  entryDate      DateTime          @map("entry_date") @db.Date
+  reference      String?
+  remarks        String?
+  idempotencyKey String?           @unique @map("idempotency_key")
+  sourceEntity   String?           @map("source_entity")
+  sourceId       String?           @map("source_id") @db.Uuid
+  createdById    String?           @map("created_by_id") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lines          LedgerEntryLine[]
+
+  @@index([companyId, entryDate, deletedAt])
+  @@index([sourceEntity, sourceId])
+  @@map("ledger_entries")
+}
+
+model LedgerEntryLine {
+  id             String            @id @default(uuid()) @db.Uuid
+  entryId        String            @map("entry_id") @db.Uuid
+  companyId      String            @map("company_id") @db.Uuid
+  accountType    LedgerAccountType @map("account_type")
+  agentId        String?           @map("agent_id") @db.Uuid
+  uplineId       String?           @map("upline_id") @db.Uuid
+  coins          Decimal           @db.Decimal(30, 8)
+  rate           Decimal           @db.Decimal(20, 8)
+  cashValue      Decimal           @map("cash_value") @db.Decimal(30, 8)
+  credit         Decimal           @default(0) @db.Decimal(30, 8)
+  debit          Decimal           @default(0) @db.Decimal(30, 8)
+  openingBalance Decimal           @map("opening_balance") @db.Decimal(30, 8)
+  closingBalance Decimal           @map("closing_balance") @db.Decimal(30, 8)
+  sequence       Int
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  entry          LedgerEntry       @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  agent          Agent?            @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  upline         Upline?           @relation(fields: [uplineId], references: [id], onDelete: Restrict)
+
+  @@unique([entryId, sequence])
+  @@index([companyId, sequence])
+  @@index([agentId, createdAt])
+  @@index([uplineId, createdAt])
+  @@map("ledger_entry_lines")
+}
+
+model AgentIdentifier {
+  id              String         @id @default(uuid()) @db.Uuid
+  legacyId        String?        @unique @map("legacy_id")
+  companyId       String         @map("company_id") @db.Uuid
+  agentId         String         @map("agent_id") @db.Uuid
+  value           String
+  normalizedValue String         @map("normalized_value")
+  type            IdentifierType
+  percentageRate  Decimal        @map("percentage_rate") @db.Decimal(7, 4)
+  status          RecordStatus   @default(ACTIVE)
+  currentBalance  Decimal        @default(0) @map("current_balance") @db.Decimal(30, 8)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  agent           Agent          @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  settlements     Settlement[]
+
+  @@unique([companyId, normalizedValue])
+  @@index([agentId, status])
+  @@map("agent_ids")
+}
+
+model Settlement {
+  id                 String             @id @default(uuid()) @db.Uuid
+  legacyId           String?            @unique @map("legacy_id")
+  companyId          String             @map("company_id") @db.Uuid
+  agentId            String             @map("agent_id") @db.Uuid
+  identifierId       String             @map("identifier_id") @db.Uuid
+  settlementDate     DateTime           @map("settlement_date") @db.Date
+  amount             Decimal            @db.Decimal(30, 8)
+  absoluteAmount     Decimal            @map("absolute_amount") @db.Decimal(30, 8)
+  agentPercentage    Decimal            @map("agent_percentage") @db.Decimal(7, 4)
+  uplinePercentage   Decimal            @default(0) @map("upline_percentage") @db.Decimal(7, 4)
+  agentShare         Decimal            @map("agent_share") @db.Decimal(30, 8)
+  companyShare       Decimal            @map("company_share") @db.Decimal(30, 8)
+  uplineShare        Decimal            @default(0) @map("upline_share") @db.Decimal(30, 8)
+  status             SettlementStatus   @default(POSTED)
+  remarks            String?
+  idempotencyKey     String             @unique @map("idempotency_key")
+  createdById        String?            @map("created_by_id") @db.Uuid
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  reversedAt         DateTime?          @map("reversed_at") @db.Timestamptz(6)
+  profitDistributedAt DateTime?         @map("profit_distributed_at") @db.Timestamptz(6)
+  company            Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  agent              Agent              @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  identifier         AgentIdentifier    @relation(fields: [identifierId], references: [id], onDelete: Restrict)
+  uplineEntries      UplineEntry[]
+  shareholderEntries ShareholderEntry[]
+
+  @@index([companyId, settlementDate, status])
+  @@index([companyId, profitDistributedAt])
+  @@index([identifierId, settlementDate])
+  @@map("settlements")
+}
+
+model Upline {
+  id             String              @id @default(uuid()) @db.Uuid
+  companyId      String              @map("company_id") @db.Uuid
+  name           String
+  normalizedName String              @map("normalized_name")
+  percentageRate Decimal             @default(0) @map("percentage_rate") @db.Decimal(7, 4)
+  currentBalance Decimal             @default(0) @map("current_balance") @db.Decimal(30, 8)
+  status         RecordStatus        @default(ACTIVE)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  groups         UplineGroupMember[]
+  entries        UplineEntry[]
+  ledgerLines    LedgerEntryLine[]
+
+  @@unique([companyId, normalizedName])
+  @@map("uplines")
+}
+
+model UplineGroup {
+  id             String              @id @default(uuid()) @db.Uuid
+  companyId      String              @map("company_id") @db.Uuid
+  name           String
+  normalizedName String              @map("normalized_name")
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  members        UplineGroupMember[]
+
+  @@unique([companyId, normalizedName])
+  @@map("upline_groups")
+}
+
+model UplineGroupMember {
+  groupId        String      @map("group_id") @db.Uuid
+  uplineId       String      @map("upline_id") @db.Uuid
+  percentageRate Decimal     @map("percentage_rate") @db.Decimal(7, 4)
+  group          UplineGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  upline         Upline      @relation(fields: [uplineId], references: [id], onDelete: Restrict)
+
+  @@id([groupId, uplineId])
+  @@map("upline_group_members")
+}
+
+model UplineEntry {
+  id           String            @id @default(uuid()) @db.Uuid
+  companyId    String            @map("company_id") @db.Uuid
+  uplineId     String            @map("upline_id") @db.Uuid
+  settlementId String?           @map("settlement_id") @db.Uuid
+  source       UplineEntrySource
+  entryDate    DateTime          @map("entry_date") @db.Date
+  amount       Decimal           @db.Decimal(30, 8)
+  remarks      String?
+  createdById  String?           @map("created_by_id") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt    DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  upline       Upline            @relation(fields: [uplineId], references: [id], onDelete: Restrict)
+  settlement   Settlement?       @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, entryDate, source, deletedAt])
+  @@map("upline_entries")
+}
+
+model Shareholder {
+  id             String             @id @default(uuid()) @db.Uuid
+  companyId      String             @map("company_id") @db.Uuid
+  name           String
+  normalizedName String             @map("normalized_name")
+  percentage     Decimal            @db.Decimal(7, 4)
+  currentBalance Decimal            @default(0) @map("current_balance") @db.Decimal(30, 8)
+  status         RecordStatus       @default(ACTIVE)
+  phone          String?
+  email          String?
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  company        Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  entries        ShareholderEntry[]
+
+  @@unique([companyId, normalizedName])
+  @@map("shareholders")
+}
+
+model ShareholderEntry {
+  id              String                 @id @default(uuid()) @db.Uuid
+  companyId       String                 @map("company_id") @db.Uuid
+  shareholderId   String                 @map("shareholder_id") @db.Uuid
+  settlementId    String?                @map("settlement_id") @db.Uuid
+  distributionKey String?                @unique @map("distribution_key")
+  source          ShareholderEntrySource
+  entryDate       DateTime               @map("entry_date") @db.Date
+  periodStart     DateTime?              @map("period_start") @db.Date
+  periodEnd       DateTime?              @map("period_end") @db.Date
+  companyProfit   Decimal                @map("company_profit") @db.Decimal(30, 8)
+  percentage      Decimal                @db.Decimal(7, 4)
+  amount          Decimal                @db.Decimal(30, 8)
+  remarks         String?
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt       DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  company         Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  shareholder     Shareholder            @relation(fields: [shareholderId], references: [id], onDelete: Restrict)
+  settlement      Settlement?            @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, entryDate, source, deletedAt])
+  @@index([companyId, periodStart, periodEnd, deletedAt])
+  @@map("shareholder_entries")
+}
+
+model Owner {
+  id             String                 @id @default(uuid()) @db.Uuid
+  companyId      String                 @map("company_id") @db.Uuid
+  name           String
+  normalizedName String                 @map("normalized_name")
+  email          String?
+  status         RecordStatus           @default(ACTIVE)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  company        Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  phoneNumbers   OwnerPhoneNumber[]
+  assignments    OwnerAgentAssignment[]
+
+  @@unique([companyId, normalizedName])
+  @@map("owners")
+}
+
+model OwnerPhoneNumber {
+  id        String  @id @default(uuid()) @db.Uuid
+  ownerId   String  @map("owner_id") @db.Uuid
+  phone     String
+  label     String?
+  isPrimary Boolean @default(false) @map("is_primary")
+  owner     Owner   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, phone])
+  @@map("owner_phone_numbers")
+}
+
+model OwnerAgentAssignment {
+  ownerId    String   @map("owner_id") @db.Uuid
+  agentId    String   @map("agent_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  owner      Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  agent      Agent    @relation(fields: [agentId], references: [id], onDelete: Restrict)
+
+  @@id([ownerId, agentId])
+  @@map("owner_agent_assignments")
+}
+
+model ReportTemplate {
+  id        String            @id @default(uuid()) @db.Uuid
+  name      String            @unique
+  type      ReportType
+  subject   String?
+  body      String
+  isActive  Boolean           @default(true) @map("is_active")
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  reports   GeneratedReport[]
+
+  @@map("report_templates")
+}
+
+model GeneratedReport {
+  id            String           @id @default(uuid()) @db.Uuid
+  companyId     String?          @map("company_id") @db.Uuid
+  templateId    String?          @map("template_id") @db.Uuid
+  type          ReportType
+  format        ReportFormat
+  parameters    Json
+  storageKey    String?          @map("storage_key")
+  checksum      String?
+  generatedById String?          @map("generated_by_id") @db.Uuid
+  generatedAt   DateTime         @default(now()) @map("generated_at") @db.Timestamptz(6)
+  expiresAt     DateTime?        @map("expires_at") @db.Timestamptz(6)
+  company       Company?         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  template      ReportTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  deliveries    ReportDelivery[]
+
+  @@index([companyId, type, generatedAt])
+  @@map("generated_reports")
+}
+
+model ReportDelivery {
+  id            String             @id @default(uuid()) @db.Uuid
+  reportId      String             @map("report_id") @db.Uuid
+  mode          ReportDeliveryMode
+  recipient     String
+  status        DeliveryStatus     @default(QUEUED)
+  attemptCount  Int                @default(0) @map("attempt_count")
+  lastError     String?            @map("last_error")
+  nextAttemptAt DateTime?          @map("next_attempt_at") @db.Timestamptz(6)
+  sentAt        DateTime?          @map("sent_at") @db.Timestamptz(6)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  report        GeneratedReport    @relation(fields: [reportId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+  @@map("report_deliveries")
+}
+
+model WhatsAppConnection {
+  id              String                   @id @default(uuid()) @db.Uuid
+  name            String                   @unique
+  status          WhatsAppConnectionStatus @default(DISCONNECTED)
+  phoneNumber     String?                  @map("phone_number")
+  sessionKey      String                   @unique @map("session_key")
+  qrCode          String?                  @map("qr_code") @db.Text
+  qrExpiresAt     DateTime?                @map("qr_expires_at") @db.Timestamptz(6)
+  lastConnectedAt DateTime?                @map("last_connected_at") @db.Timestamptz(6)
+  lastError       String?                  @map("last_error")
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  messages        WhatsAppMessage[]
+
+  @@map("whatsapp_connections")
+}
+
+model WhatsAppMessage {
+  id                String             @id @default(uuid()) @db.Uuid
+  connectionId      String             @map("connection_id") @db.Uuid
+  deliveryId        String?            @map("delivery_id") @db.Uuid
+  recipient         String
+  mode              ReportDeliveryMode
+  status            DeliveryStatus     @default(QUEUED)
+  providerMessageId String?            @map("provider_message_id")
+  attemptCount      Int                @default(0) @map("attempt_count")
+  lastError         String?            @map("last_error")
+  sentAt            DateTime?          @map("sent_at") @db.Timestamptz(6)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  connection        WhatsAppConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@map("whatsapp_messages")
+}
+
+model Backup {
+  id            String            @id @default(uuid()) @db.Uuid
+  status        BackupStatus      @default(PENDING)
+  storageKey    String?           @map("storage_key")
+  checksum      String?
+  sizeBytes     BigInt?           @map("size_bytes")
+  errorMessage  String?           @map("error_message")
+  requestedById String?           @map("requested_by_id") @db.Uuid
+  startedAt     DateTime?         @map("started_at") @db.Timestamptz(6)
+  completedAt   DateTime?         @map("completed_at") @db.Timestamptz(6)
+  verifiedAt    DateTime?         @map("verified_at") @db.Timestamptz(6)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  recipients    BackupRecipient[]
+
+  @@index([status, createdAt])
+  @@map("backups")
+}
+
+model BackupRecipient {
+  id          String    @id @default(uuid()) @db.Uuid
+  backupId    String    @map("backup_id") @db.Uuid
+  email       String
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+  backup      Backup    @relation(fields: [backupId], references: [id], onDelete: Cascade)
+
+  @@unique([backupId, email])
+  @@map("backup_recipients")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  companyId  String?  @map("company_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  requestId  String?  @map("request_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  company    Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([companyId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model ApplicationSetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  value       Json
+  isSecret    Boolean  @default(false) @map("is_secret")
+  description String?
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("application_settings")
+}
+
+model Job {
+  id             String    @id @default(uuid()) @db.Uuid
+  type           JobType
+  status         JobStatus @default(PENDING)
+  payload        Json
+  idempotencyKey String?   @unique @map("idempotency_key")
+  attemptCount   Int       @default(0) @map("attempt_count")
+  maxAttempts    Int       @default(3) @map("max_attempts")
+  runAfter       DateTime  @default(now()) @map("run_after") @db.Timestamptz(6)
+  lockedAt       DateTime? @map("locked_at") @db.Timestamptz(6)
+  lockedBy       String?   @map("locked_by")
+  lastError      String?   @map("last_error")
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, runAfter])
+  @@map("jobs")
+}

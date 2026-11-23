@@ -879,7 +879,7 @@ public function getPartnersByCompany($companyId)
                 ->limit(10)
                 ->get()
                 ->map(function($t) {
-                    $partner = \DB::table("partners")->where("partner_id", $t->name_id)->first();
+                    $partner = \DB::table("partners")->where("uuid", $t->name_id)->first();
                     $company = \DB::table("companies")->where("company_id", $t->product_id)->first();
                     return [
                         "id" => $t->id,
