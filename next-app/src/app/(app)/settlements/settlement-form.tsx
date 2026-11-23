@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Landmark, LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FormModal } from "@/components/ui/form-modal";
 import { Input } from "@/components/ui/input";
 import type { ActionState } from "@/lib/actions/types";
 import { createSettlementAction } from "./actions";
@@ -14,7 +15,7 @@ export function SettlementForm({ companies, initialIdempotencyKey }: { companies
   const [state, action, pending] = useActionState(createSettlementAction, {} as ActionState);
   const [companyId, setCompanyId] = useState(companies[0]?.id ?? "");
   const company = companies.find((option) => option.id === companyId);
-  return (
+  return <FormModal trigger="Post settlement" title="Post settlement" size="xl">
     <form action={action} className="rounded-lg border bg-white p-3">
       <div className="mb-3 flex items-center gap-2"><Landmark className="size-4 text-[#a97819]" /><h2 className="text-sm font-bold">Post settlement</h2></div>
       <input type="hidden" name="idempotencyKey" value={state.data?.idempotencyKey ?? initialIdempotencyKey} />
@@ -29,5 +30,5 @@ export function SettlementForm({ companies, initialIdempotencyKey }: { companies
       {state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null}
       <div className="mt-3 flex justify-end"><Button type="submit" disabled={pending || !company?.identifiers.length}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}{pending ? "Posting" : "Post settlement"}</Button></div>
     </form>
-  );
+  </FormModal>;
 }

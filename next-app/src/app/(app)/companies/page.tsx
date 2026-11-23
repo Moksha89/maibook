@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FormModal } from "@/components/ui/form-modal";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -32,8 +33,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title="Companies" description="Manage company workspaces, assignments, and ledger activity." />
-      {canCreate ? <CompanyForm /> : null}
+      <PageHeader title="Companies" description="Manage company workspaces, assignments, and ledger activity." actions={canCreate ? <FormModal trigger="Add company" title="Create company"><CompanyForm /></FormModal> : null} />
       <section className="mt-3 overflow-hidden rounded-lg border bg-white">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
           <h2 className="text-sm font-bold">Company directory</h2>

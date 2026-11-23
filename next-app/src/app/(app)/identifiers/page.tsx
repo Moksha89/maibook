@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { FormModal } from "@/components/ui/form-modal";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { hasPermission, requirePermission } from "@/lib/auth/permissions";
@@ -22,8 +23,7 @@ export default async function IdentifiersPage() {
   const options = companies.map((company) => ({ id: company.id, name: company.name, agents: company.agents.map(({ agent }) => agent) }));
   return (
     <>
-      <PageHeader title="IDs" description="Company-scoped Agent and Sub Agent identifiers with snapshotted settlement rates." />
-      {canCreate && options.length ? <IdentifierForm companies={options} /> : null}
+      <PageHeader title="IDs" description="Company-scoped Agent and Sub Agent identifiers with snapshotted settlement rates." actions={canCreate && options.length ? <FormModal trigger="Add ID" title="Create ID"><IdentifierForm companies={options} /></FormModal> : null} />
       <section className="mt-3 overflow-hidden rounded-lg border bg-white">
         <div className="border-b px-3 py-2"><h2 className="text-sm font-bold">ID directory</h2></div>
         <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2">ID</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">Agent</th><th className="px-3 py-2 text-right">Rate</th><th className="px-3 py-2 text-right">Balance</th><th className="px-3 py-2 text-right">Settlements</th><th className="px-3 py-2">Status</th></tr></thead><tbody>{identifiers.map((identifier) => <tr key={identifier.id} className="border-t hover:bg-[#fafbfc]"><td className="px-3 py-2 font-mono font-semibold">{identifier.value}</td><td className="px-3 py-2">{identifier.type === "SUB_AGENT" ? "Sub Agent" : "Agent"}</td><td className="px-3 py-2">{identifier.company.name}</td><td className="px-3 py-2">{identifier.agent.name}</td><td className="px-3 py-2 text-right font-mono">{identifier.percentageRate.toFixed(2)}%</td><td className={`px-3 py-2 text-right font-mono font-semibold ${identifier.currentBalance.isNegative() ? "text-[#b42318]" : "text-[#16794b]"}`}>{identifier.currentBalance.toFixed(2)}</td><td className="px-3 py-2 text-right font-mono">{identifier._count.settlements}</td><td className="px-3 py-2"><StatusBadge tone={identifier.status === "ACTIVE" ? "success" : "neutral"}>{identifier.status}</StatusBadge></td></tr>)}</tbody></table></div>
