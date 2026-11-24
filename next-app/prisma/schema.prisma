@@ -106,6 +106,7 @@ enum ReportDeliveryMode {
   TEXT
   IMAGE
   BOTH
+  PDF
   EMAIL
 }
 
@@ -113,6 +114,7 @@ enum DeliveryStatus {
   QUEUED
   SENDING
   SENT
+  DELIVERED
   FAILED
   CANCELLED
 }
@@ -709,6 +711,7 @@ model ReportDelivery {
   lastError     String?            @map("last_error")
   nextAttemptAt DateTime?          @map("next_attempt_at") @db.Timestamptz(6)
   sentAt        DateTime?          @map("sent_at") @db.Timestamptz(6)
+  deliveredAt   DateTime?          @map("delivered_at") @db.Timestamptz(6)
   createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   report        GeneratedReport    @relation(fields: [reportId], references: [id], onDelete: Restrict)
 
@@ -743,6 +746,7 @@ model WhatsAppMessage {
   attemptCount      Int                @default(0) @map("attempt_count")
   lastError         String?            @map("last_error")
   sentAt            DateTime?          @map("sent_at") @db.Timestamptz(6)
+  deliveredAt       DateTime?          @map("delivered_at") @db.Timestamptz(6)
   createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   connection        WhatsAppConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
 

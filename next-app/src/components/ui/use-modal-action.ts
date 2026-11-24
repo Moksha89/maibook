@@ -20,6 +20,12 @@ export function useModalAction(action: (state: ActionState, formData: FormData) 
       if (digest.startsWith("NEXT_REDIRECT")) throw error;
       if (digest.startsWith("NEXT_HTTP_ERROR_FALLBACK;401")) return { status: "error", message: "Your session has expired. Please sign in again." };
       if (digest.startsWith("NEXT_HTTP_ERROR_FALLBACK;403")) return { status: "error", message: "You do not have permission to do this." };
+      const text = String((error as { message?: string } | null)?.message ?? "");
+      if (/unexpected response|Failed to find Server Action|older or newer deployment/i.test(text)) {
+        // The site was updated while this tab stayed open: the page's scripts no longer match the server.
+        setTimeout(() => window.location.reload(), 1500);
+        return { status: "error", message: "Maibook was just updated. Reloading this page so you can try again…" };
+      }
       return { status: "error", message: "We could not save this. Check the details and try again." + (digest ? ` (ref ${digest.slice(0, 8)})` : "") };
     }
   }, [action]);

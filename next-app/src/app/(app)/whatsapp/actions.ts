@@ -32,7 +32,7 @@ export async function logoutWhatsAppAction(_formData?: FormData): Promise<void> 
   revalidatePath("/whatsapp");
 }
 
-const deliverySchema = z.object({ reportId: z.string().uuid(), recipient: z.string().trim().min(8).max(600), mode: z.enum(["TEXT", "IMAGE", "BOTH"]) });
+const deliverySchema = z.object({ reportId: z.string().uuid(), recipient: z.string().trim().min(8).max(600), mode: z.enum(["TEXT", "IMAGE", "BOTH", "PDF"]) });
 
 export async function queueWhatsAppDeliveryAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("whatsapp.send");

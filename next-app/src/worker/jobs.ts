@@ -1,9 +1,10 @@
 import { Job, Prisma } from "@prisma/client";
-import sharp from "sharp";
 import { z } from "zod";
 import { db } from "../lib/db";
 import { loadReportTable, type ReportParameters, type ReportTable } from "../lib/services/report-data";
 import { sendEmail } from "../lib/services/email";
+import { renderPdf, renderPng, reportFileName } from "../lib/services/report-render";
+import { getBranding } from "../lib/services/branding";
 import { sendWhatsAppReport } from "../lib/services/whatsapp-bridge";
 
 const whatsappPayload = z.object({ deliveryId: z.string().uuid(), connectionId: z.string().uuid() });
@@ -13,18 +14,6 @@ export class UnsupportedJobError extends Error {}
 
 function reportText(table: ReportTable) {
   return [table.title, table.subtitle, "", table.columns.join(" | "), ...table.rows.map((row) => row.join(" | "))].join("\n");
-}
-
-function escapeXml(value: string) {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-async function reportPng(table: ReportTable) {
-  const text = reportText(table).split("\n").slice(0, 80);
-  const width = 1400;
-  const height = Math.max(300, 110 + text.length * 24);
-  const lines = text.map((line, index) => `<text x="34" y="${48 + index * 24}" font-family="monospace" font-size="15" fill="#17263a">${escapeXml(line.slice(0, 160))}</text>`).join("");
-  return sharp(Buffer.from(`<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#ffffff"/><rect width="100%" height="8" fill="#c9952e"/>${lines}</svg>`)).png().toBuffer();
 }
 
 export async function claimJob(workerId: string) {
@@ -44,20 +33,23 @@ async function deliverWhatsApp(payload: Prisma.JsonValue) {
   const data = whatsappPayload.parse(payload);
   const delivery = await db.reportDelivery.findUniqueOrThrow({ where: { id: data.deliveryId }, include: { report: true } });
   // A retry after recording provider success must not send the report twice.
-  if (delivery.status === "SENT") return;
+  if (delivery.status === "SENT" || delivery.status === "DELIVERED") return;
   const connection = await db.whatsAppConnection.findUniqueOrThrow({ where: { id: data.connectionId } });
   if (connection.status !== "CONNECTED") throw new Error("WhatsApp is disconnected.");
   if (delivery.report.expiresAt && delivery.report.expiresAt <= new Date()) throw new Error("The report has expired.");
   const table = await loadReportTable(delivery.report.type, delivery.report.parameters as unknown as ReportParameters);
-  const text = delivery.mode === "IMAGE" ? undefined : reportText(table);
-  const image = delivery.mode === "TEXT" ? undefined : await reportPng(table);
+  const text = delivery.mode === "TEXT" || delivery.mode === "BOTH" ? reportText(table) : undefined;
+  const image = delivery.mode === "IMAGE" || delivery.mode === "BOTH" ? await renderPng(table) : undefined;
+  const document = delivery.mode === "PDF" ? await renderPdf(table, await getBranding()) : undefined;
+  // The bridge only answers once WhatsApp's servers have acknowledged the message; anything else throws and is retried.
   const result = await sendWhatsAppReport(connection.sessionKey, {
-    recipient: delivery.recipient, text, imageBase64: image?.toString("base64"),
-    imageFilename: image ? `${delivery.report.type.toLowerCase()}.png` : undefined,
+    recipient: delivery.recipient, text: delivery.mode === "PDF" ? table.title : text,
+    imageBase64: image?.toString("base64"), imageFilename: image ? reportFileName(table.title, "png") : undefined,
+    documentBase64: document?.toString("base64"), documentFilename: document ? reportFileName(table.title, "pdf") : undefined, documentMimetype: document ? "application/pdf" : undefined,
   });
   await db.$transaction([
-    db.reportDelivery.update({ where: { id: delivery.id }, data: { status: "SENT", sentAt: new Date(), attemptCount: { increment: 1 }, lastError: null, nextAttemptAt: null } }),
-    db.whatsAppMessage.updateMany({ where: { deliveryId: delivery.id }, data: { status: "SENT", sentAt: new Date(), attemptCount: { increment: 1 }, lastError: null, providerMessageId: result.messageId } }),
+    db.reportDelivery.updateMany({ where: { id: delivery.id, status: { not: "DELIVERED" } }, data: { status: "SENT", sentAt: new Date(), attemptCount: { increment: 1 }, lastError: null, nextAttemptAt: null } }),
+    db.whatsAppMessage.updateMany({ where: { deliveryId: delivery.id, status: { not: "DELIVERED" } }, data: { status: "SENT", sentAt: new Date(), attemptCount: { increment: 1 }, lastError: null, providerMessageId: result.messageId } }),
   ]);
 }
 
@@ -87,9 +79,9 @@ export async function settleJob(job: Job, error?: unknown) {
     const payload = whatsappPayload.safeParse(job.payload);
     if (!payload.success) return;
     const deliveryState = { status: final ? "FAILED" as const : "QUEUED" as const, lastError, attemptCount: { increment: 1 } };
-    await tx.reportDelivery.updateMany({ where: { id: payload.data.deliveryId, status: { not: "SENT" } }, data: {
+    await tx.reportDelivery.updateMany({ where: { id: payload.data.deliveryId, status: { notIn: ["SENT", "DELIVERED"] } }, data: {
       ...deliveryState, nextAttemptAt: final ? null : retryAt,
     } });
-    await tx.whatsAppMessage.updateMany({ where: { deliveryId: payload.data.deliveryId, status: { not: "SENT" } }, data: deliveryState });
+    await tx.whatsAppMessage.updateMany({ where: { deliveryId: payload.data.deliveryId, status: { notIn: ["SENT", "DELIVERED"] } }, data: deliveryState });
   });
 }

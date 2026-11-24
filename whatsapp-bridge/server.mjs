@@ -15,6 +15,39 @@ const SESSIONS_DIR = path.resolve(process.env.SESSIONS_DIR || "./sessions");
 const logger = pino({ level: process.env.LOG_LEVEL || "warn" });
 const log = (...args) => console.log(new Date().toISOString(), ...args);
 
+// libsignal prints whole session objects (including key material) with console.info/warn; keep those out of the journal.
+for (const level of ["info", "warn"]) {
+  const original = console[level].bind(console);
+  console[level] = (...args) => {
+    if (typeof args[0] === "string" && /^(Closing|Opening|Removing|Migrating|Session already|Failed to decrypt|Bad MAC|No matching sessions)/.test(args[0])) { original(args[0].slice(0, 80)); return; }
+    original(...args);
+  };
+}
+
+/** Delivery receipts by WhatsApp message id: PENDING -> SERVER_ACK (WhatsApp accepted) -> DELIVERY_ACK (reached a phone) -> READ. */
+const ACK_NAMES = { 0: "ERROR", 1: "PENDING", 2: "SERVER_ACK", 3: "DELIVERY_ACK", 4: "READ", 5: "READ" };
+const acks = new Map();
+const ackWaiters = new Map();
+function recordAck(sessionKey, id, code, extra = {}) {
+  if (!id) return;
+  const name = ACK_NAMES[code] || String(code);
+  const previous = acks.get(id);
+  if (previous && previous.code >= code && code !== 0) return;
+  acks.set(id, { code, status: name, at: new Date().toISOString(), ...extra });
+  if (acks.size > 500) acks.delete(acks.keys().next().value);
+  log("ack", id.slice(0, 8), name, extra.error || "");
+  ackWaiters.get(id)?.forEach((fn) => fn());
+  if (code !== 1) notify(sessionKey, { messageId: id, messageStatus: name === "READ" ? "DELIVERY_ACK" : name, ...(extra.error ? { error: extra.error } : {}) });
+}
+function waitForAck(id, minCode, ms) {
+  return new Promise((resolve) => {
+    const check = () => { const a = acks.get(id); if (a && (a.code >= minCode || a.code === 0)) { cleanup(); resolve(a); } };
+    const timer = setTimeout(() => { cleanup(); resolve(acks.get(id) || null); }, ms);
+    const cleanup = () => { clearTimeout(timer); const list = ackWaiters.get(id) || []; ackWaiters.set(id, list.filter((fn) => fn !== check)); if (!ackWaiters.get(id).length) ackWaiters.delete(id); };
+    ackWaiters.set(id, [...(ackWaiters.get(id) || []), check]); check();
+  });
+}
+
 if (!TOKEN || TOKEN.length < 16) { console.error("BRIDGE_TOKEN (>=16 chars) is required."); process.exit(1); }
 mkdirSync(SESSIONS_DIR, { recursive: true, mode: 0o700 });
 
@@ -52,6 +85,26 @@ async function connect(sessionKey, state) {
   const sock = makeWASocket({ auth, version, logger, browser: Browsers.ubuntu("Maibook"), printQRInTerminal: false, markOnlineOnConnect: false, syncFullHistory: false, generateHighQualityLinkPreview: false });
   state.sock = sock;
   sock.ev.on("creds.update", saveCreds);
+  // Raw protocol acknowledgements (attributes only, never message content) so delivery problems can be diagnosed from the journal.
+  sock.ws.on("CB:ack,class:message", (node) => {
+    const { id, error, phash } = node.attrs || {};
+    log("server ack", String(id).slice(0, 8), error ? `error=${error}` : "ok");
+    if (id && error) recordAck(sessionKey, id, 0, { error: `WhatsApp rejected the message (error ${error}).` });
+    else if (id) recordAck(sessionKey, id, 2);
+  });
+  sock.ws.on("CB:receipt", (node) => log("receipt", String(node.attrs?.id).slice(0, 8), node.attrs?.type || "delivery", String(node.attrs?.from || "").replace(/\d{6}(?=\d{4}@)/, "******")));
+  sock.ev.on("messages.update", (updates) => {
+    for (const { key, update } of updates) {
+      if (!key?.fromMe || update?.status === undefined) continue;
+      recordAck(sessionKey, key.id, update.status, update.status === 0 ? { error: "WhatsApp reported a send error." } : {});
+    }
+  });
+  sock.ev.on("message-receipt.update", (updates) => {
+    for (const { key, receipt } of updates) {
+      if (!key?.fromMe) continue;
+      if (receipt?.receiptTimestamp || receipt?.readTimestamp || receipt?.playedTimestamp) recordAck(sessionKey, key.id, receipt.readTimestamp ? 4 : 3);
+    }
+  });
   sock.ev.on("connection.update", async (update) => {
     if (state.sock !== sock) return;
     const { connection, lastDisconnect, qr } = update;
@@ -100,16 +153,27 @@ async function sendMessage(sessionKey, body) {
   const lookup = await state.sock.onWhatsApp(`${number}@s.whatsapp.net`);
   const hit = lookup?.find((entry) => entry.exists);
   if (!hit) { const error = new Error(`+${number} is not registered on WhatsApp.`); error.status = 422; throw error; }
+  log("send to", `${number.slice(0, 4)}******${number.slice(-2)}`, "jid-type", String(hit.jid).split("@")[1], "lid", hit.lid ? "yes" : "no");
   const text = typeof body.text === "string" && body.text.trim() ? body.text : undefined;
   let result;
-  if (body.imageBase64) {
+  if (body.documentBase64) {
+    const document = Buffer.from(String(body.documentBase64).replace(/^data:[^,]+,/, ""), "base64");
+    if (!document.length || document.length > 25 * 1024 * 1024) { const error = new Error("Invalid or oversized document."); error.status = 400; throw error; }
+    const fileName = String(body.documentFilename || "report.pdf").replace(/[^\w.\- ]+/g, "_").slice(0, 100);
+    result = await state.sock.sendMessage(hit.jid, { document, mimetype: String(body.documentMimetype || "application/pdf"), fileName, caption: text });
+  } else if (body.imageBase64) {
     const image = Buffer.from(String(body.imageBase64).replace(/^data:[^,]+,/, ""), "base64");
     if (!image.length || image.length > 15 * 1024 * 1024) { const error = new Error("Invalid or oversized image."); error.status = 400; throw error; }
     result = await state.sock.sendMessage(hit.jid, { image, caption: text, fileName: body.imageFilename || "report.png" });
   } else if (text) {
     result = await state.sock.sendMessage(hit.jid, { text });
-  } else { const error = new Error("Nothing to send: provide text or an image."); error.status = 400; throw error; }
-  return { messageId: result?.key?.id || "unknown" };
+  } else { const error = new Error("Nothing to send: provide text, an image or a document."); error.status = 400; throw error; }
+  const messageId = result?.key?.id || "unknown";
+  recordAck(sessionKey, messageId, 1);
+  // sendMessage() only means the frame was written to the socket. Wait for WhatsApp's own acknowledgement.
+  const ack = await waitForAck(messageId, 2, 25_000);
+  if (!ack || ack.code < 2) { const error = new Error("WhatsApp did not acknowledge the message within 25 seconds. It was not delivered."); error.status = 504; throw error; }
+  return { messageId, ack: ack.status, jid: hit.jid };
 }
 
 function authorised(request) {
@@ -133,6 +197,8 @@ const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
     if (request.method === "GET" && url.pathname === "/health") return send(200, { ok: true, sessions: [...sessions].map(([key, value]) => ({ key: key.slice(0, 8), status: value.status })) });
     if (!authorised(request)) return send(401, { error: "Unauthorized" });
+    const status = /^\/v1\/messages\/([A-Za-z0-9]{6,64})$/.exec(url.pathname);
+    if (request.method === "GET" && status) return send(200, acks.get(status[1]) || { status: "UNKNOWN" });
     const match = /^\/v1\/sessions\/([^/]+)\/(initialize|logout|messages)$/.exec(url.pathname);
     if (request.method !== "POST" || !match) return send(404, { error: "Not found" });
     const sessionKey = decodeURIComponent(match[1]);

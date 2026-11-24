@@ -7,6 +7,8 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: false,
+  // Lets open browser tabs notice a new release (and reload) instead of posting to server actions that no longer exist.
+  ...(process.env.DEPLOYMENT_ID ? { deploymentId: process.env.DEPLOYMENT_ID } : {}),
   experimental: { authInterrupts: true, serverActions: { bodySizeLimit: "512mb" } },
   turbopack: {
     root: projectRoot,

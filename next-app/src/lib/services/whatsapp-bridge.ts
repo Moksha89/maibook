@@ -1,6 +1,6 @@
 import "server-only";
 
-interface BridgeResponse { status?: string; phoneNumber?: string; qrCode?: string; error?: string; messageId?: string }
+interface BridgeResponse { status?: string; phoneNumber?: string; qrCode?: string; error?: string; messageId?: string; ack?: string; jid?: string }
 
 function config() {
   const url = process.env.WHATSAPP_BRIDGE_URL?.replace(/\/$/, "");
@@ -20,9 +20,9 @@ async function bridgeRequest(sessionKey: string, action: "initialize" | "logout"
 export function initializeWhatsAppSession(sessionKey: string) { return bridgeRequest(sessionKey, "initialize"); }
 export function logoutWhatsAppSession(sessionKey: string) { return bridgeRequest(sessionKey, "logout"); }
 
-export async function sendWhatsAppReport(sessionKey: string, payload: { recipient: string; text?: string; imageBase64?: string; imageFilename?: string }) {
+export async function sendWhatsAppReport(sessionKey: string, payload: { recipient: string; text?: string; imageBase64?: string; imageFilename?: string; documentBase64?: string; documentFilename?: string; documentMimetype?: string }) {
   const { url, token } = config();
-  const response = await fetch(`${url}/v1/sessions/${encodeURIComponent(sessionKey)}/messages`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(30_000) });
+  const response = await fetch(`${url}/v1/sessions/${encodeURIComponent(sessionKey)}/messages`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(60_000) });
   const body = await response.json().catch(() => ({})) as BridgeResponse;
   if (!response.ok) throw new Error(body.error || `WhatsApp bridge returned ${response.status}.`);
   return body;
