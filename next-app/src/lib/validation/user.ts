@@ -1,0 +1,13 @@
+import { z } from "zod";
+import { passwordSchema } from "./auth";
+
+export const createUserSchema = z.object({
+  username: z.string().trim().min(3).max(80).regex(/^[A-Za-z0-9._-]+$/, "Use letters, numbers, dots, dashes, or underscores."),
+  displayName: z.string().trim().min(2).max(120),
+  email: z.union([z.literal(""), z.string().email().max(254)]).optional(),
+  phone: z.string().trim().max(30).optional(),
+  password: passwordSchema,
+  roleId: z.string().uuid(),
+  maxDevices: z.coerce.number().int().min(1).max(10),
+  expiresAt: z.preprocess((value) => value === "" ? undefined : value, z.coerce.date().optional()),
+});

@@ -1,0 +1,4 @@
+import { apiData, apiError, authenticateApi, pageParams, requestId } from "@/lib/api/auth";
+import { db } from "@/lib/db";
+
+export async function GET(request: Request) { const id = requestId(request); try { const token = await authenticateApi(request, "companies:read"); const { page, perPage, skip } = pageParams(request); const superAdmin = token.user.roles.some(({ role }) => role.key === "superadmin"); const where = { deletedAt: null, ...(superAdmin ? {} : { userAccess: { some: { userId: token.userId } } }) }; const [data, total] = await Promise.all([db.company.findMany({ where, select: { id: true, name: true, code: true, slug: true, currency: true, defaultRate: true, status: true, createdAt: true, updatedAt: true }, skip, take: perPage, orderBy: { name: "asc" } }), db.company.count({ where })]); return apiData(data, id, { page, perPage, total, pages: Math.ceil(total / perPage) }); } catch (error) { return apiError(error, id); } }

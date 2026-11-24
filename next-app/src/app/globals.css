@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+:root {
+  --navy-950: #08111f;
+  --navy-900: #0d1a2c;
+  --navy-800: #14243a;
+  --navy-700: #203650;
+  --gold-500: #c9952e;
+  --gold-400: #dda940;
+  --amber-100: #fff4d7;
+  --amber-200: #f4d68d;
+  --canvas: #f4f6f8;
+  --surface: #ffffff;
+  --border: #dce2e8;
+  --muted: #647386;
+  --text: #152235;
+  --danger: #b42318;
+  --success: #16794b;
+}
+
+@theme inline {
+  --color-background: var(--canvas);
+  --color-foreground: var(--text);
+  --font-sans: var(--font-instrument-sans);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+* { border-color: var(--border); }
+html { background: var(--canvas); }
+body { min-width: 320px; background: var(--canvas); color: var(--text); font-family: var(--font-instrument-sans), Arial, sans-serif; font-size: 14px; line-height: 1.45; }
+button, input, select, textarea { font: inherit; }
+:focus-visible { outline: 2px solid var(--gold-500); outline-offset: 2px; }
+::selection { background: var(--amber-200); color: var(--navy-950); }
+
+@media print {
+  body { background: white; color: black; font-size: 11px; }
+  [data-print-hidden] { display: none !important; }
+}

@@ -1,0 +1,26 @@
+import { randomUUID } from "node:crypto";
+import type { Metadata } from "next";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { hasPermission, requirePermission } from "@/lib/auth/permissions";
+import { requireSession } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { reverseSettlementAction } from "./actions";
+import { SettlementForm } from "./settlement-form";
+
+export const metadata: Metadata = { title: "Settlements" };
+
+export default async function SettlementsPage() {
+  await requirePermission("settlements.read");
+  const session = await requireSession();
+  const superAdmin = session.user.roles.some(({ role }) => role.key === "superadmin");
+  const accessFilter = superAdmin ? {} : { userAccess: { some: { userId: session.userId } } };
+  const [canCreate, canReverse, companies, settlements] = await Promise.all([
+    hasPermission("settlements.create"),
+    hasPermission("settlements.reverse"),
+    db.company.findMany({ where: { deletedAt: null, status: "ACTIVE", ...accessFilter }, include: { identifiers: { where: { deletedAt: null, status: "ACTIVE" }, include: { agent: { select: { name: true } } }, orderBy: { value: "asc" } }, uplines: { where: { deletedAt: null, status: "ACTIVE" }, orderBy: { name: "asc" } } }, orderBy: { name: "asc" } }),
+    db.settlement.findMany({ where: { company: accessFilter }, include: { company: { select: { name: true } }, agent: { select: { name: true } }, identifier: { select: { value: true, type: true } } }, orderBy: [{ settlementDate: "desc" }, { createdAt: "desc" }], take: 100 }),
+  ]);
+  const options = companies.map((company) => ({ id: company.id, name: company.name, identifiers: company.identifiers.map((identifier) => ({ id: identifier.id, value: identifier.value, type: identifier.type, agentName: identifier.agent.name, percentageRate: identifier.percentageRate.toFixed(2) })), uplines: company.uplines.map((upline) => ({ id: upline.id, name: upline.name, percentageRate: upline.percentageRate.toFixed(2) })) }));
+  return <><PageHeader title="Settlements" description="Atomic settlement records with percentage snapshots, reversals, and linked ledger postings." />{canCreate && options.length ? <SettlementForm companies={options} initialIdempotencyKey={randomUUID()} /> : null}<section className="mt-3 overflow-hidden rounded-lg border bg-white"><div className="border-b px-3 py-2"><h2 className="text-sm font-bold">Settlement history</h2></div><div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-left text-xs"><thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">ID</th><th className="px-3 py-2">Agent</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Agent %</th><th className="px-3 py-2 text-right">Agent share</th><th className="px-3 py-2 text-right">Upline share</th><th className="px-3 py-2 text-right">Company share</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Action</th></tr></thead><tbody>{settlements.map((settlement) => <tr key={settlement.id} className="border-t hover:bg-[#fafbfc]"><td className="px-3 py-2">{settlement.settlementDate.toLocaleDateString()}</td><td className="px-3 py-2">{settlement.company.name}</td><td className="px-3 py-2 font-mono font-semibold">{settlement.identifier.value}</td><td className="px-3 py-2">{settlement.agent.name}</td><td className={`px-3 py-2 text-right font-mono font-semibold ${settlement.amount.isNegative() ? "text-[#b42318]" : "text-[#16794b]"}`}>{settlement.amount.toFixed(2)}</td><td className="px-3 py-2 text-right font-mono">{settlement.agentPercentage.toFixed(2)}%</td><td className="px-3 py-2 text-right font-mono">{settlement.agentShare.toFixed(2)}</td><td className="px-3 py-2 text-right font-mono">{settlement.uplineShare.toFixed(2)}</td><td className="px-3 py-2 text-right font-mono">{settlement.companyShare.toFixed(2)}</td><td className="px-3 py-2"><StatusBadge tone={settlement.status === "POSTED" ? "success" : "danger"}>{settlement.status}</StatusBadge></td><td className="px-3 py-2 text-right">{canReverse && settlement.status === "POSTED" ? <form action={reverseSettlementAction} className="flex justify-end gap-1"><input type="hidden" name="settlementId" value={settlement.id} /><input type="hidden" name="companyId" value={settlement.companyId} /><input name="reason" className="h-7 w-36 rounded border px-2 text-[11px]" placeholder="Reason" maxLength={500} /><button className="h-7 rounded border border-[#efb6b0] px-2 font-semibold text-[#b42318]">Reverse</button></form> : null}</td></tr>)}</tbody></table></div>{!settlements.length ? <p className="px-3 py-8 text-center text-xs text-[#647386]">No settlements have been posted.</p> : null}</section></>;
+}
