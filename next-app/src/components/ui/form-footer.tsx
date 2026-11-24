@@ -19,7 +19,10 @@ export function FormFooter({ children, className }: { children: React.ReactNode;
     const sync = () => {
       const button = submit();
       if (!button) return;
-      const valid = form.checkValidity();
+      // Read validity without form.checkValidity(): that fires an "invalid" event on every bad field, and the
+      // input's onInvalid handler then re-renders a controlled input with a stale value *before* React has
+      // processed the keystroke, which silently reverted typed text (e.g. the one-character Name in Add agent).
+      const valid = Array.from(form.elements).every((element) => { const field = element as HTMLInputElement; return !field.willValidate || field.validity.valid; });
       if (valid) {
         if (button.dataset.vdis === "1") { delete button.dataset.vdis; button.disabled = false; button.removeAttribute("title"); }
       } else if (!button.disabled && !button.querySelector(".animate-spin")) {

@@ -20,12 +20,15 @@ export async function createSettlementAction(_: ActionState, formData: FormData)
   await requireCompanyAccess(parsed.data.companyId, "FULL");
   const session = await requireSession();
   try {
-    await postSettlement({ ...parsed.data, actorId: session.userId, requestId: randomUUID() });
+    const posted = await postSettlement({ ...parsed.data, actorId: session.userId, requestId: randomUUID() });
+    const subAgent = (await db.agentIdentifier.findUnique({ where: { id: posted.identifierId }, select: { type: true } }))?.type === "SUB_AGENT";
+    const share = (subAgent ? 1 : -1) * Number(posted.agentShare.toString()) * (Number(posted.amount.toString()) < 0 ? -1 : 1);
+    const who = Math.abs(share) < 0.5 ? "Settled" : share > 0 ? "Agent owes company" : "Company owes agent";
     revalidatePath("/settlements");
     revalidatePath("/identifiers");
     revalidatePath("/agents");
     revalidatePath("/ledger");
-    return { status: "success", message: "Settlement posted with snapshotted percentages.", data: { idempotencyKey: randomUUID() } };
+    return { status: "success", message: `Settlement posted. ${who}${Math.abs(share) < 0.5 ? "" : ` ${Math.abs(share).toLocaleString("en-IN", { maximumFractionDigits: 0, signDisplay: "negative" })}`}.`, data: { idempotencyKey: randomUUID() } };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "success", message: "This settlement was already posted.", data: { idempotencyKey: randomUUID() } };
     return { status: "error", message: error instanceof Error ? error.message : "The settlement could not be posted." };

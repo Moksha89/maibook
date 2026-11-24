@@ -4,6 +4,7 @@ import { createElement, useEffect, useRef, useState } from "react";
 import type { ElementType, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { Building2, CalendarDays, ChevronDown, ChevronUp, Coins, Eye, EyeOff, FileText, Gauge, Hash, Info, Link2, LockKeyhole, Mail, PencilLine, Shield, Smartphone, StickyNote, Tag, UserRound, Users } from "lucide-react";
 import { clsx } from "clsx";
+import { SearchableSelect } from "./searchable-select";
 
 type FieldIcon = ElementType<{ className?: string; strokeWidth?: number }>;
 
@@ -54,6 +55,8 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   strength?: boolean;
   reveal?: boolean;
   stepper?: boolean;
+  /** Convert typed text to CAPITALS as the user types (the value itself, not just the look). */
+  uppercase?: boolean;
   ref?: Ref<HTMLInputElement>;
 }
 
@@ -142,7 +145,7 @@ function BaseInput({ className, icon, prefix, suffix, hint, error, strength, rev
           ref={setRefs}
           type={isPassword && reveal && shown ? "text" : type}
           className={clsx(bareInput, isNumber && "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none", isDate && "[&::-webkit-calendar-picker-indicator]:hidden", !leading && !isAmount && !prefix && "pl-3.5")}
-          onInput={(event) => { if (showStrength) setValue(event.currentTarget.value); if (localError && event.currentTarget.checkValidity()) setLocalError(""); onInput?.(event); }}
+          onInput={(event) => { if (showStrength) setValue(event.currentTarget.value); if (localError && event.currentTarget.validity.valid) setLocalError(""); onInput?.(event); }}
           onBlur={(event) => { setLocalError(event.currentTarget.value === "" && !event.currentTarget.required ? "" : event.currentTarget.validationMessage); onBlur?.(event); }}
           onInvalid={(event) => { setLocalError(event.currentTarget.validationMessage); onInvalid?.(event); }}
           {...rest}
@@ -249,7 +252,7 @@ function PhoneField({ className, hint, error, ref, onChange, onBlur, defaultValu
           inputMode="tel"
           autoComplete="tel-national"
           className={bareInput}
-          placeholder={country.iso === "IN" ? "98765 43210" : placeholder ?? "Phone number"}
+          placeholder={placeholder}
           aria-invalid={showError || undefined}
           value={formatNational(country, national)}
           onChange={(event) => {
@@ -263,12 +266,22 @@ function PhoneField({ className, hint, error, ref, onChange, onBlur, defaultValu
           {...props}
         />
       </span>
-      {showError ? <span role="alert" className="mt-1 flex items-center gap-1 text-[11px] font-normal text-[#b42318]"><Info className="size-3" />{error ?? problem}</span> : error ? <span role="alert" className="mt-1 text-[11px] text-[#b42318]">{error}</span> : <span className="mt-1 block text-[11px] font-normal text-[#647386]">{hint ?? (country.iso === "IN" ? "10-digit Indian mobile number, e.g. 98765 43210." : `Number without the +${country.dial} prefix.`)}</span>}
+      {showError ? <span role="alert" className="mt-1 flex items-center gap-1 text-[11px] font-normal text-[#b42318]"><Info className="size-3" />{error ?? problem}</span> : error ? <span role="alert" className="mt-1 text-[11px] text-[#b42318]">{error}</span> : hint ? <span className="mt-1 block text-[11px] font-normal text-[#647386]">{hint}</span> : null}
     </span>
   );
 }
 
-export function Input(props: InputProps) {
+export function Input({ uppercase, ...rest }: InputProps) {
+  let props: Omit<InputProps, "uppercase"> = rest;
+  if (uppercase) {
+    const inner = rest.onChange;
+    props = { ...rest, className: clsx("[&_input]:uppercase", rest.className), onChange: (event) => {
+      const el = event.target;
+      const upper = el.value.toUpperCase();
+      if (upper !== el.value) { const start = el.selectionStart, end = el.selectionEnd; el.value = upper; if (start !== null && end !== null) el.setSelectionRange(start, end); }
+      inner?.(event);
+    } };
+  }
   const type = props.type ?? "text";
   const isPhone = type === "tel" || /phone/i.test(props.name ?? "") || props.inputMode === "tel";
   return isPhone && !plainTypes.has(type) ? <PhoneField {...props} /> : <BaseInput {...props} />;
@@ -297,12 +310,7 @@ export function Select({ className, icon, compact, hint, error, children, ...pro
   const leading = icon === undefined ? pickSelectIcon(props.name ?? "") : icon;
   return (
     <span className={clsx("relative min-w-0", compact ? "inline-block" : "block", className)}>
-      {leading ? <span className={clsx("pointer-events-none absolute top-1/2 -translate-y-1/2 text-[#8a98a8]", compact ? "left-2.5" : "left-3")}>{createElement(leading, { className: compact ? "size-3.5" : "size-4", strokeWidth: 1.75 })}</span> : null}
-      <select
-        className={clsx("w-full cursor-pointer appearance-none truncate rounded-full border border-[#d5dbe6] bg-white text-[#152235] outline-none transition-shadow focus:border-[#6a5cf5] focus:ring-[3px] focus:ring-[#6a5cf5]/20 disabled:cursor-not-allowed disabled:bg-[#f2f4f6] disabled:text-[#8a98a8] aria-[invalid=true]:border-[#e5484d]", compact ? "h-8 text-xs" : "h-9 text-sm", leading ? (compact ? "pl-8" : "pl-9") : "pl-3.5", compact ? "pr-7" : "pr-8")}
-        {...props}
-      >{children}</select>
-      <ChevronDown className={clsx("pointer-events-none absolute top-1/2 -translate-y-1/2 text-[#8a98a8]", compact ? "right-2.5 size-3.5" : "right-3 size-4")} strokeWidth={1.75} />
+      <SearchableSelect compact={compact} leading={leading} selectProps={props}>{children}</SearchableSelect>
       {error ? <span role="alert" className="mt-1 block text-[11px] text-[#b42318]">{error}</span> : hint ? <span className="mt-1 block text-[11px] text-[#647386]">{hint}</span> : null}
     </span>
   );

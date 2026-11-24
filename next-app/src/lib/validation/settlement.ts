@@ -7,6 +7,6 @@ export const settlementSchema = z.object({
   uplineId: z.preprocess((value) => value === "" ? undefined : value, z.string().uuid().optional()),
   amount: money("Amount", { nonZero: true }),
   settlementDate: pastOrToday("Settlement date"),
-  remarks: z.string().trim().max(500).optional(),
+  remarks: z.string().trim().max(500).transform((value) => value.toUpperCase()).optional(),
   idempotencyKey: z.string().uuid(),
 });

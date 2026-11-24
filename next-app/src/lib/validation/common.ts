@@ -37,6 +37,13 @@ export const money = (label: string, opts: { min?: number; max?: number; positiv
     .refine(twoDecimals, `${label} can have at most two decimal places.`);
 };
 
+/** Agent/company style name, saved in CAPITALS. */
+export const upperName = (label = "Name", min = 2, max = 120) =>
+  nameField(label, min, max).transform((value) => value.toUpperCase());
+
+/** Optional remarks, saved in CAPITALS. */
+export const upperRemarks = z.string().trim().max(500).transform((value) => value.toUpperCase()).optional();
+
 export const percent = (label = "Percentage", opts: { positive?: boolean } = {}) =>
   money(label, { min: 0, max: 100, positive: opts.positive });
 

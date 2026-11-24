@@ -77,13 +77,14 @@ export async function updateCompanyAction(_: ActionState, formData: FormData): P
         name: parsed.data.name,
         normalizedName: normalizeName(parsed.data.name),
         code: parsed.data.code || null,
-        contactPhone: parsed.data.contactPhone || null,
-        contactEmail: parsed.data.contactEmail || null,
+        contactPhone: formData.has("contactPhone") ? parsed.data.contactPhone || null : undefined,
+        contactEmail: formData.has("contactEmail") ? parsed.data.contactEmail || null : undefined,
         notes: parsed.data.notes || null,
-        currency: parsed.data.currency,
-        defaultRate,
-        reportHeader: parsed.data.reportHeader || null,
-        reportFooter: parsed.data.reportFooter || null,
+        currency: formData.has("currency") ? parsed.data.currency : undefined,
+        defaultRate: formData.has("defaultRate") ? defaultRate : undefined,
+        reportHeader: formData.has("reportHeader") ? parsed.data.reportHeader || null : undefined,
+        reportFooter: formData.has("reportFooter") ? parsed.data.reportFooter || null : undefined,
+        createdAt: formData.has("createdAt") && parsed.data.createdAt && existing.createdAt.toISOString().slice(0, 10) !== parsed.data.createdAt.toISOString().slice(0, 10) ? parsed.data.createdAt : undefined,
         auditLogs: { create: { actorId: session.userId, action: "company.update", entityType: "Company", requestId: randomUUID(), oldValues: { name: existing.name, code: existing.code, currency: existing.currency, defaultRate: existing.defaultRate?.toString() ?? null }, newValues: { name: parsed.data.name, code: parsed.data.code || null, currency: parsed.data.currency, defaultRate } } },
       },
     });
@@ -106,15 +107,15 @@ export async function deleteCompanyAction(_: ActionState, formData: FormData): P
   const companyId = String(formData.get("companyId") || "");
   await requireCompanyAccess(companyId, "FULL");
   const session = await requireSession();
-  const company = await db.company.findFirst({ where: { id: companyId, deletedAt: null }, include: { _count: { select: { ledgerEntries: true, settlements: true } } } });
+  const company = await db.company.findFirst({ where: { id: companyId, deletedAt: null }, include: { _count: { select: { ledgerEntries: true, settlements: true, expenses: { where: { deletedAt: null } } } } } });
   if (!company) return { status: "error", message: "This company no longer exists." };
   const [activeAgents, activeIdentifiers] = await Promise.all([db.companyAgent.count({ where: { companyId, removedAt: null } }), db.agentIdentifier.count({ where: { companyId, deletedAt: null } })]);
-  if (company._count.ledgerEntries || company._count.settlements) return { status: "error", message: "This company has ledger or settlement history and cannot be removed. Deactivate it instead." };
+  if (company._count.ledgerEntries || company._count.settlements || company._count.expenses) return { status: "error", message: "This company has ledger, settlement or expense history and cannot be removed. Deactivate it instead." };
   if (activeAgents || activeIdentifiers) return { status: "error", message: "Remove its agents and IDs first, or deactivate the company." };
   const suffix = `~deleted-${company.id.slice(0, 8)}`;
   await db.company.update({
     where: { id: company.id },
-    data: { deletedAt: new Date(), status: "INACTIVE", normalizedName: `${company.normalizedName}${suffix}`, slug: `${company.slug}${suffix}`, code: null, auditLogs: { create: { actorId: session.userId, action: "company.delete", entityType: "Company", requestId: randomUUID(), oldValues: { name: company.name, code: company.code } } } },
+    data: { deletedAt: new Date(), deletedById: session.userId, status: "INACTIVE", normalizedName: `${company.normalizedName}${suffix}`, slug: `${company.slug}${suffix}`, code: null, auditLogs: { create: { actorId: session.userId, action: "company.delete", entityType: "Company", requestId: randomUUID(), oldValues: { name: company.name, code: company.code } } } },
   });
   revalidatePath("/companies");
   revalidatePath("/dashboard");

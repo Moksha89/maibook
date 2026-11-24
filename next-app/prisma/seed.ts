@@ -20,6 +20,7 @@ const permissionDefinitions = {
   uplines: ["read", "create", "update", "delete", "distribute"],
   shareholders: ["read", "create", "update", "delete", "distribute"],
   owners: ["read", "create", "update", "delete"],
+  expenses: ["read", "create", "update", "delete"],
   reports: ["read", "generate", "export", "deliver"],
   whatsapp: ["read", "connect", "disconnect", "send"],
   users: ["read", "create", "update", "delete", "revoke_sessions"],

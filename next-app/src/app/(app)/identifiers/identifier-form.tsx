@@ -2,33 +2,37 @@
 
 import { useModalAction } from "@/components/ui/use-modal-action";
 import { useState } from "react";
-import { IdCard, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { FormFooter } from "@/components/ui/form-footer";
+import { modalField, modalLabel } from "@/components/ui/form-styles";
 import type { ActionState } from "@/lib/actions/types";
 import { createIdentifierAction } from "./actions";
 import { SegmentedToggle } from "@/components/ui/toggle";
 
+interface SiteOption { id: string; name: string; companyId: string | null }
 interface CompanyOption { id: string; name: string; agents: { id: string; name: string }[] }
 
-export function IdentifierForm({ companies }: { companies: CompanyOption[] }) {
+export function IdentifierForm({ sites, companies }: { sites: SiteOption[]; companies: CompanyOption[] }) {
   const [state, action, pending] = useModalAction(createIdentifierAction, {} as ActionState);
-  const [companyId, setCompanyId] = useState(companies[0]?.id ?? "");
+  const [siteId, setSiteId] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [agentId, setAgentId] = useState("");
   const company = companies.find((option) => option.id === companyId);
   return (
-    <form action={action} className="rounded-lg border bg-white p-3">
-      <div className="mb-3 flex items-center gap-2"><IdCard className="size-4 text-[#a97819]" /><h2 className="text-sm font-bold">Add ID</h2></div>
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-        <label className="text-xs font-bold text-[#0d1a2c]">Company<Select name="companyId" className="mt-1" value={companyId} onChange={(event) => setCompanyId(event.target.value)}>{companies.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</Select></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">Agent<Select name="agentId" className="mt-1" required><option value="">Select</option>{company?.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</Select></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">ID value<Input name="value" className="mt-1" required /></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">Type<SegmentedToggle name="type" label="ID type" size="md" className="mt-1 w-full" options={[{ value: "AGENT", label: "Agent" }, { value: "SUB_AGENT", label: "Sub Agent" }]} /></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">Agent percentage<Input name="percentageRate" className="mt-1" type="number" min="0" max="100" step="0.0001" required /><span className="mt-1 block text-[11px] font-normal text-[#647386]">Agent ID: this percentage is posted to the agent. SubAgent ID: the sub agent keeps this percentage and the agent is posted the remaining percentage (80 keeps 80, posts 20).</span></label>
+    <form action={action} className="text-xs">
+      <div className="grid grid-cols-2" style={{ columnGap: 16, rowGap: 8 }}>
+        <label className={modalLabel}>ID name<Input name="value" className={modalField} required /></label>
+        <label className={modalLabel}>Site<Select name="siteId" className={modalField} value={siteId} required onChange={(event) => { setSiteId(event.target.value); setAgentId(""); setCompanyId(sites.find((option) => option.id === event.target.value)?.companyId ?? ""); }}><option value="">None</option>{sites.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</Select></label>
+        <label className={modalLabel}>Company<Select name="companyId" className={modalField} value={companyId} onChange={(event) => { setCompanyId(event.target.value); setAgentId(""); }}><option value="">None</option>{companies.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</Select></label>
+        <label className={modalLabel}>Agent<Select key={companyId} name="agentId" className={modalField} defaultValue="" onChange={(event) => setAgentId(event.target.value)}><option value="">None</option>{company?.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</Select></label>
+        <label className={modalLabel}>Type<div className="mt-0.5"><SegmentedToggle name="type" label="ID type" size="xs" className="w-fit" options={[{ value: "AGENT", label: "Agent" }, { value: "SUB_AGENT", label: "Sub Agent" }]} /></div></label>
+        <label className={modalLabel}>Agent percentage<Input name="percentageRate" className={modalField} type="number" min="0" max="100" step="0.0001" required={Boolean(agentId)} /></label>
       </div>
       {state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null}
-      <FormFooter><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}{pending ? "Saving" : "Create ID"}</Button></FormFooter>
+      <FormFooter className="!mt-2"><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}{pending ? "Saving" : "Create ID"}</Button></FormFooter>
     </form>
   );
 }

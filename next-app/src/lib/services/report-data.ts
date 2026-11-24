@@ -3,6 +3,8 @@ import "server-only";
 import { ReportType } from "@prisma/client";
 import { db } from "@/lib/db";
 import { signedSettlementShare } from "@/lib/domain/finance";
+import { whole } from "@/lib/format";
+import { singleCompanyPnl } from "@/lib/services/expenses";
 
 export interface ReportParameters { companyId: string; agentId?: string; startDate: string; endDate: string }
 export interface ReportTable { title: string; subtitle: string; columns: string[]; rows: string[][] }
@@ -17,28 +19,41 @@ export async function loadReportTable(type: ReportType, parameters: ReportParame
   const endDate = new Date(parameters.endDate);
   const subtitle = `${company.name} · ${fmtDate(startDate)} to ${fmtDate(endDate)}`;
   if (type === "SETTLEMENT") {
-    const records = await db.settlement.findMany({ where: { companyId: parameters.companyId, settlementDate: { gte: startDate, lte: endDate } }, include: { identifier: { select: { value: true } }, agent: { select: { name: true } } }, orderBy: [{ settlementDate: "asc" }, { createdAt: "asc" }] });
-    return { title: "Settlement Report", subtitle, columns: ["Date", "ID", "Agent", "Amount", "Agent %", "Agent Share", "Upline Share", "Company Share", "Status"], rows: records.map((record) => [fmtDate(record.settlementDate), record.identifier.value, record.agent.name, record.amount.toFixed(2), record.agentPercentage.toFixed(2), signedSettlementShare(record.amount, record.agentShare).toFixed(2), signedSettlementShare(record.amount, record.uplineShare).toFixed(2), signedSettlementShare(record.amount, record.companyShare).toFixed(2), record.status]) };
+    const records = await db.settlement.findMany({ where: { companyId: parameters.companyId, status: "POSTED", settlementDate: { gte: startDate, lte: endDate } }, include: { identifier: { select: { value: true } }, agent: { select: { name: true } } }, orderBy: [{ settlementDate: "asc" }, { createdAt: "asc" }] });
+    return { title: "Settlement Report", subtitle, columns: ["Date", "ID", "Agent", "Amount", "Agent %", "Agent Share", "Upline Share", "Company Share", "Status"], rows: records.map((record) => [fmtDate(record.settlementDate), record.identifier.value, record.agent.name, whole(record.amount), record.agentPercentage.toFixed(2), whole(signedSettlementShare(record.amount, record.agentShare)), whole(signedSettlementShare(record.amount, record.uplineShare)), whole(signedSettlementShare(record.amount, record.companyShare)), record.status]) };
   }
   if (type === "UPLINE") {
     const records = await db.uplineEntry.findMany({ where: { companyId: parameters.companyId, deletedAt: null, entryDate: { gte: startDate, lte: endDate } }, include: { upline: { select: { name: true } } }, orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }] });
-    return { title: "Upline Report", subtitle, columns: ["Date", "Upline", "Source", "Amount", "Remarks"], rows: records.map((record) => [fmtDate(record.entryDate), record.upline.name, record.source.replaceAll("_", " "), record.amount.toFixed(2), record.remarks || ""]) };
+    return { title: "Upline Report", subtitle, columns: ["Date", "Upline", "Source", "Amount", "Remarks"], rows: records.map((record) => [fmtDate(record.entryDate), record.upline.name, record.source.replaceAll("_", " "), whole(record.amount), record.remarks || ""]) };
   }
   if (type === "COMPANY_SUMMARY") {
     const [assignments, movement] = await Promise.all([
       db.companyAgent.findMany({ where: { companyId: parameters.companyId, removedAt: null }, include: { agent: { select: { name: true } } }, orderBy: { agent: { name: "asc" } } }),
-      db.ledgerEntryLine.groupBy({ by: ["agentId"], where: { companyId: parameters.companyId, accountType: "AGENT", entry: { deletedAt: null, entryDate: { gte: startDate, lte: endDate } } }, _sum: { coins: true } }),
+      db.ledgerEntryLine.groupBy({ by: ["agentId"], where: { companyId: parameters.companyId, accountType: "AGENT", entry: { deletedAt: null, entryDate: { gte: startDate, lte: endDate } } }, _sum: { cashValue: true } }),
     ]);
-    const moved = new Map(movement.map((row) => [row.agentId, row._sum.coins?.toFixed(2) ?? "0.00"]));
+    const moved = new Map(movement.map((row) => [row.agentId, whole(row._sum.cashValue)]));
     const position = (value: { isPositive: () => boolean; isNegative: () => boolean }) => value.isNegative() ? "Negative" : value.isPositive() ? "Positive" : "Zero";
     const ordered = [...assignments].sort((a, b) => position(a.currentBalance).localeCompare(position(b.currentBalance)) || a.agent.name.localeCompare(b.agent.name));
-    return { title: "Agent Balance Summary", subtitle, columns: ["Agent", "Position", "Opening", "Movement in period", "Current balance"], rows: ordered.map((assignment) => [assignment.agent.name, position(assignment.currentBalance), assignment.openingBalance.toFixed(2), moved.get(assignment.agentId) ?? "0.00", assignment.currentBalance.toFixed(2)]) };
+    return { title: "Agent Balance Summary", subtitle, columns: ["Agent", "Position", "Opening", "Movement in period", "Current balance"], rows: ordered.map((assignment) => [assignment.agent.name, position(assignment.currentBalance), whole(assignment.openingBalance), moved.get(assignment.agentId) ?? "0", whole(assignment.currentBalance)]) };
+  }
+  if (type === "COMPANY_PNL") {
+    // Final PNL = company profit (posted settlements) - expenses in the period; shareholders split the final PNL.
+    const [pnl, expenses, shareholders] = await Promise.all([
+      singleCompanyPnl(parameters.companyId, { start: startDate, end: endDate }),
+      db.expense.groupBy({ by: ["category"], where: { companyId: parameters.companyId, deletedAt: null, expenseDate: { gte: startDate, lte: endDate } }, _sum: { amount: true }, _count: true, orderBy: { category: "asc" } }),
+      db.shareholder.findMany({ where: { companyId: parameters.companyId, status: "ACTIVE", deletedAt: null }, select: { name: true, percentage: true }, orderBy: { name: "asc" } }),
+    ]);
+    const rows: string[][] = [["Company profit", "Settlements", "", whole(pnl.profit)]];
+    for (const row of expenses) rows.push([`Expense: ${row.category}`, `${row._count} entr${row._count === 1 ? "y" : "ies"}`, "", whole(-Number(row._sum.amount ?? 0))]);
+    rows.push(["Expenses total", `${pnl.expenseCount} entr${pnl.expenseCount === 1 ? "y" : "ies"}`, "", whole(-pnl.expenses)], ["Final PNL", "Profit - expenses", "", whole(pnl.finalPnl)]);
+    for (const shareholder of shareholders) rows.push([shareholder.name, "Shareholder PNL share", shareholder.percentage.toFixed(2), whole(pnl.finalPnl * Number(shareholder.percentage) / 100)]);
+    return { title: "Company PNL Report", subtitle, columns: ["Item", "Detail", "Share %", "Amount"], rows };
   }
   if (type === "PROFIT_DISTRIBUTION") {
     const records = await db.shareholderEntry.findMany({ where: { companyId: parameters.companyId, deletedAt: null, entryDate: { gte: startDate, lte: endDate } }, include: { shareholder: { select: { name: true } } }, orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }] });
-    return { title: "Profit Distribution Report", subtitle, columns: ["Date", "Shareholder", "Source", "Company Profit", "Share %", "Amount", "Remarks"], rows: records.map((record) => [fmtDate(record.entryDate), record.shareholder.name, record.source.replaceAll("_", " "), record.companyProfit.toFixed(2), record.percentage.toFixed(2), record.amount.toFixed(2), record.remarks || ""]) };
+    return { title: "Profit Distribution Report", subtitle, columns: ["Date", "Shareholder", "Source", "Company Profit", "Share %", "Amount", "Remarks"], rows: records.map((record) => [fmtDate(record.entryDate), record.shareholder.name, record.source.replaceAll("_", " "), whole(record.companyProfit), record.percentage.toFixed(2), whole(record.amount), record.remarks || ""]) };
   }
   const lines = await db.ledgerEntryLine.findMany({ where: { companyId: parameters.companyId, ...(type === "AGENT_LEDGER" ? { agentId: parameters.agentId } : {}), entry: { deletedAt: null, entryDate: { gte: startDate, lte: endDate } } }, include: { agent: { select: { name: true } }, upline: { select: { name: true } }, entry: { select: { entryDate: true, entryType: true, remarks: true } } }, orderBy: [{ entry: { entryDate: "asc" } }, { entry: { createdAt: "asc" } }, { sequence: "asc" }] });
   const agent = parameters.agentId ? await db.agent.findUnique({ where: { id: parameters.agentId }, select: { name: true } }) : null;
-  return { title: type === "AGENT_LEDGER" ? `Agent Ledger · ${agent?.name || "Unknown"}` : "Company Ledger", subtitle, columns: ["Date", "Account", "Type", "Coins", "Rate", "Credit", "Debit", "Balance", "Remarks"], rows: lines.map((line) => [fmtDate(line.entry.entryDate), line.agent?.name || line.upline?.name || "Company", line.entry.entryType.replaceAll("_", " "), line.coins.toFixed(2), line.rate.toFixed(4), line.credit.toFixed(2), line.debit.toFixed(2), line.closingBalance.toFixed(2), line.entry.remarks || ""]) };
+  return { title: type === "AGENT_LEDGER" ? `Agent Ledger · ${agent?.name || "Unknown"}` : "Company Ledger", subtitle, columns: ["Date", "Account", "Type", "Coins", "Rate", "Credit", "Debit", "Balance", "Remarks"], rows: lines.map((line) => [fmtDate(line.entry.entryDate), line.agent?.name || line.upline?.name || "Company", line.entry.entryType.replaceAll("_", " "), whole(line.coins), line.rate.toFixed(4), whole(line.credit), whole(line.debit), whole(line.closingBalance), line.entry.remarks || ""]) };
 }

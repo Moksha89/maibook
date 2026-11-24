@@ -32,9 +32,9 @@ export async function generateReportAction(_: ActionState, formData: FormData): 
 export async function createReportTemplateAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("reports.generate");
   const name = String(formData.get("name") || "").trim();
-  const type = String(formData.get("type") || "") as "COMPANY_LEDGER" | "AGENT_LEDGER" | "SETTLEMENT" | "PROFIT_DISTRIBUTION" | "UPLINE" | "COMPANY_SUMMARY";
+  const type = String(formData.get("type") || "") as "COMPANY_LEDGER" | "AGENT_LEDGER" | "SETTLEMENT" | "PROFIT_DISTRIBUTION" | "UPLINE" | "COMPANY_SUMMARY" | "COMPANY_PNL";
   const body = String(formData.get("body") || "").trim();
-  if (!name || !body || !["COMPANY_LEDGER", "AGENT_LEDGER", "SETTLEMENT", "PROFIT_DISTRIBUTION", "UPLINE", "COMPANY_SUMMARY"].includes(type)) return { status: "error", message: "Name, report type, and template body are required." };
+  if (!name || !body || !["COMPANY_LEDGER", "AGENT_LEDGER", "SETTLEMENT", "PROFIT_DISTRIBUTION", "UPLINE", "COMPANY_SUMMARY", "COMPANY_PNL"].includes(type)) return { status: "error", message: "Name, report type, and template body are required." };
   await db.reportTemplate.create({ data: { name, type, body } });
   revalidatePath("/reports");
   return { status: "success", message: "Report template created." };

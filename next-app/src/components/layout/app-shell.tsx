@@ -1,7 +1,7 @@
 "use client";
 
 import { clsx } from "clsx";
-import { Building2, ChartNoAxesCombined, Database, FileClock, FileText, Gauge, IdCard, KeyRound, Layers3, Menu, MessageSquareText, Settings, ShieldCheck, SplitSquareHorizontal, UserRoundCog, Users, WalletCards, X, type LucideIcon } from "lucide-react";
+import { Building2, ChartNoAxesCombined, Database, FileClock, FileText, Gauge, Globe, IdCard, KeyRound, Layers3, Menu, MessageSquareText, ReceiptIndianRupee, Settings, ShieldCheck, SplitSquareHorizontal, UserRoundCog, Users, WalletCards, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -16,11 +16,13 @@ const navigation: { href: string; label: string; icon: LucideIcon; permission: s
   { href: "/ledger", label: "Ledger", icon: WalletCards, permission: "ledger.read" },
   { href: "/identifiers", label: "IDs", icon: IdCard, permission: "identifiers.read" },
   { href: "/settlements", label: "Settlements", icon: ChartNoAxesCombined, permission: "settlements.read" },
+  { href: "/expenses", label: "Expenses", icon: ReceiptIndianRupee, permission: "expenses.read" },
   { href: "/reports", label: "Reports", icon: FileText, permission: "reports.read" },
   { href: "/whatsapp", label: "WhatsApp", icon: MessageSquareText, permission: "whatsapp.read" },
   { href: "/users", label: "Users & access", icon: ShieldCheck, permission: "users.read" },
   { href: "/owners", label: "Owners & partners", icon: UserRoundCog, permission: "owners.read" },
   { href: "/upline-groups", label: "Upline groups", icon: Layers3, permission: "uplines.read" },
+  { href: "/sites", label: "Sites", icon: Globe, permission: "uplines.read" },
   { href: "/manual-distribution", label: "Manual distribution", icon: SplitSquareHorizontal, permission: "uplines.distribute" },
   { href: "/audit", label: "Audit logs", icon: FileClock, permission: "audit.read" },
   { href: "/settings", label: "Settings", icon: Settings, permission: "settings.read" },

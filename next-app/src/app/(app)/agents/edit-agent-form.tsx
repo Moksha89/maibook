@@ -21,7 +21,7 @@ export function EditAgentForm({ agent, assignableCompanies, canAssign }: { agent
       <form action={action} className="rounded-lg border bg-white p-3">
         <input type="hidden" name="agentId" value={agent.id} />
         <div className="grid gap-2 sm:grid-cols-3">
-          <label className="text-xs font-bold text-[#0d1a2c]">Name<Input name="name" className="mt-1" defaultValue={agent.name} required /></label>
+          <label className="text-xs font-bold text-[#0d1a2c]">Name<Input uppercase name="name" className="mt-1" defaultValue={agent.name} required /></label>
           <label className="text-xs font-bold text-[#0d1a2c]">Phone<Input name="phone" className="mt-1" inputMode="tel" defaultValue={agent.phone ?? ""} /></label>
           <label className="text-xs font-bold text-[#0d1a2c]">Email<Input name="email" className="mt-1" type="email" defaultValue={agent.email ?? ""} /></label>
         </div>

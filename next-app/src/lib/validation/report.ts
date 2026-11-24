@@ -4,7 +4,7 @@ export const reportRequestSchema = z.object({
   templateId: z.preprocess((value) => value === "" ? undefined : value, z.string().uuid().optional()),
   companyId: z.string().uuid(),
   agentId: z.preprocess((value) => value === "" ? undefined : value, z.string().uuid().optional()),
-  type: z.enum(["COMPANY_LEDGER", "AGENT_LEDGER", "SETTLEMENT", "PROFIT_DISTRIBUTION", "UPLINE", "COMPANY_SUMMARY"]),
+  type: z.enum(["COMPANY_LEDGER", "AGENT_LEDGER", "SETTLEMENT", "PROFIT_DISTRIBUTION", "UPLINE", "COMPANY_SUMMARY", "COMPANY_PNL"]),
   format: z.enum(["PDF", "PNG", "CSV", "TEXT", "PRINT"]),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),

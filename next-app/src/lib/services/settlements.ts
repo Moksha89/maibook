@@ -38,8 +38,9 @@ export async function postSettlement(input: PostSettlementInput) {
         return existing;
       }
       await tx.$queryRaw`SELECT "id" FROM "agent_ids" WHERE "id" = ${input.identifierId}::uuid FOR UPDATE`;
-      const identifier = await tx.agentIdentifier.findFirst({ where: { id: input.identifierId, companyId: input.companyId, deletedAt: null, status: "ACTIVE" } });
+      const identifier = await tx.agentIdentifier.findFirst({ where: { id: input.identifierId, companyId: input.companyId, deletedAt: null, status: "ACTIVE" }, include: { site: { select: { uplinePercentage: true } } } });
       if (!identifier) throw new Error("The selected ID is unavailable.");
+      if (!identifier.agentId) throw new Error("Link an agent to this ID before posting a settlement.");
       await tx.$queryRaw`SELECT "agent_id" FROM "company_agents" WHERE "company_id" = ${input.companyId}::uuid AND "agent_id" = ${identifier.agentId}::uuid FOR UPDATE`;
       const assignment = await tx.companyAgent.findUnique({ where: { companyId_agentId: { companyId: input.companyId, agentId: identifier.agentId } } });
       if (!assignment || assignment.removedAt) throw new Error("The ID agent is not assigned to this company.");
@@ -49,19 +50,26 @@ export async function postSettlement(input: PostSettlementInput) {
       if (upline) await tx.$queryRaw`SELECT "id" FROM "uplines" WHERE "id" = ${upline.id}::uuid FOR UPDATE`;
       // SubAgent IDs keep their percentage with the sub agent; the agent is posted the remainder.
       const appliedAgentPercentage = effectiveAgentPercentage(identifier.type, identifier.percentageRate.toString());
-      const calculation = calculateSettlement(amount, appliedAgentPercentage, upline?.percentageRate.toString() ?? 0);
+      // The upline share comes from the ID's site upline %; an ID without a site falls back to the chosen upline's %.
+      const uplinePercentage = identifier.site ? decimal(identifier.site.uplinePercentage.toString()) : decimal(upline?.percentageRate.toString() ?? 0);
+      const calculation = calculateSettlement(amount, appliedAgentPercentage, uplinePercentage);
       const direction = amount.isNegative() ? -1 : 1;
       const signedAgentShare = calculation.agentShare.mul(direction);
       const signedUplineShare = calculation.uplineShare.mul(direction);
       const signedCompanyProfit = calculation.companyProfit.mul(direction);
+      // Agent ledger line: coins are the settlement amount, the rate is the applied agent %. Regular IDs flip the sign (a positive settlement gives the agent a negative balance: company owes agent);
+      // SubAgent IDs keep it (a positive settlement gives a positive balance: agent owes company).
+      const agentCoins = identifier.type === "SUB_AGENT" ? amount : amount.neg();
+      const agentRate = appliedAgentPercentage.div(100);
+      const agentCash = agentCoins.mul(agentRate).toDecimalPlaces(8);
       const agentOpening = decimal(assignment.currentBalance.toString());
-      const agentClosing = agentOpening.add(signedAgentShare);
-      const companyAggregation = await tx.ledgerEntryLine.aggregate({ where: { companyId: input.companyId, accountType: "COMPANY", entry: { deletedAt: null } }, _sum: { coins: true } });
-      const companyOpening = decimal(companyAggregation._sum.coins?.toString() ?? 0);
+      const agentClosing = agentOpening.add(agentCash);
+      const companyAggregation = await tx.ledgerEntryLine.aggregate({ where: { companyId: input.companyId, accountType: "COMPANY", entry: { deletedAt: null } }, _sum: { cashValue: true } });
+      const companyOpening = decimal(companyAggregation._sum.cashValue?.toString() ?? 0);
       const companyClosing = companyOpening.add(signedCompanyProfit);
       const uplineOpening = decimal(upline?.currentBalance.toString() ?? 0);
       const uplineClosing = uplineOpening.add(signedUplineShare);
-      const agentAmounts = splitCreditDebit(signedAgentShare);
+      const agentAmounts = splitCreditDebit(agentCash);
       const uplineAmounts = splitCreditDebit(signedUplineShare);
       const companyAmounts = splitCreditDebit(signedCompanyProfit);
 
@@ -76,7 +84,7 @@ export async function postSettlement(input: PostSettlementInput) {
           agentPercentage: pd(appliedAgentPercentage),
           agentShare: pd(calculation.agentShare),
           companyShare: pd(calculation.companyShare),
-          uplinePercentage: upline?.percentageRate ?? 0,
+          uplinePercentage: pd(uplinePercentage),
           uplineShare: pd(calculation.uplineShare),
           remarks: input.remarks || null,
           idempotencyKey: input.idempotencyKey,
@@ -84,7 +92,7 @@ export async function postSettlement(input: PostSettlementInput) {
         },
       });
       const lines: Prisma.LedgerEntryLineCreateWithoutEntryInput[] = [
-        { company: { connect: { id: input.companyId } }, accountType: "AGENT", agent: { connect: { id: identifier.agentId } }, coins: pd(signedAgentShare), rate: 1, cashValue: pd(signedAgentShare), credit: pd(agentAmounts.credit), debit: pd(agentAmounts.debit), openingBalance: pd(agentOpening), closingBalance: pd(agentClosing), sequence: 1 },
+        { company: { connect: { id: input.companyId } }, accountType: "AGENT", agent: { connect: { id: identifier.agentId } }, coins: pd(agentCoins), rate: pd(agentRate), cashValue: pd(agentCash), credit: pd(agentAmounts.credit), debit: pd(agentAmounts.debit), openingBalance: pd(agentOpening), closingBalance: pd(agentClosing), sequence: 1 },
       ];
       if (upline) lines.push({ company: { connect: { id: input.companyId } }, accountType: "UPLINE", upline: { connect: { id: upline.id } }, coins: pd(signedUplineShare), rate: 1, cashValue: pd(signedUplineShare), credit: pd(uplineAmounts.credit), debit: pd(uplineAmounts.debit), openingBalance: pd(uplineOpening), closingBalance: pd(uplineClosing), sequence: 2 });
       lines.push({ company: { connect: { id: input.companyId } }, accountType: "COMPANY", coins: pd(signedCompanyProfit), rate: 1, cashValue: pd(signedCompanyProfit), credit: pd(companyAmounts.credit), debit: pd(companyAmounts.debit), openingBalance: pd(companyOpening), closingBalance: pd(companyClosing), sequence: lines.length + 1 });

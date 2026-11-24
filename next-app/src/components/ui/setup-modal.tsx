@@ -1,4 +1,4 @@
-import { Info } from "lucide-react";
+﻿import { Info } from "lucide-react";
 
 import { NoCloseScope } from "@/components/ui/modal-context";
 
@@ -9,10 +9,10 @@ export function AddModal({ trigger, title, size, ready, setup, children }: { tri
   return <FormModal trigger={trigger} title={title} size={size}>{ready ? children : setup}</FormModal>;
 }
 
-export function SetupNotice({ title, children, form }: { title: string; children: React.ReactNode; form?: React.ReactNode }) {
+export function SetupNotice({ title, children, form }: { title: string; children?: React.ReactNode; form?: React.ReactNode }) {
   return (
     <div data-setup-step>
-      <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#cfdcff] bg-[#eef3ff] p-3 text-xs text-[#26407f]"><Info className="mt-0.5 size-4 shrink-0" /><div><p className="font-bold">{title}</p><p className="mt-0.5">{children}</p></div></div>
+      <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#cfdcff] bg-[#eef3ff] p-3 text-xs text-[#26407f]"><Info className="mt-0.5 size-4 shrink-0" /><div><p className="font-bold">{title}</p></div></div>
       <NoCloseScope>{form}</NoCloseScope>
     </div>
   );

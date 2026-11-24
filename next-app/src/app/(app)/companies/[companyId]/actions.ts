@@ -14,7 +14,9 @@ import { normalizeEmail, normalizeName, normalizePhone } from "@/lib/domain/norm
 import { distributeCompanyProfit } from "@/lib/services/profit-distribution";
 import { financialTransaction } from "@/lib/services/financial-transaction";
 import { recalculateNonAgentBalances } from "@/lib/services/ledger";
+import { recordOwnerShare } from "@/lib/services/owner-share-history";
 import { manualUplineEntrySchema, profitDistributionSchema, shareholderSchema, uplineGroupSchema, uplineSchema } from "@/lib/validation/company-workspace";
+import { whole } from "@/lib/format";
 
 export async function createUplineAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("uplines.create");
@@ -37,7 +39,6 @@ function readGroupForm(formData: FormData) {
   const selectedUplineIds = formData.getAll("uplineIds").map(String);
   const rawPercentages = selectedUplineIds.map((id) => String(formData.get(`percentage-${id}`) ?? "").trim());
   if (!String(formData.get("name") ?? "").trim()) return { error: "Enter a group name." } as const;
-  if (!selectedUplineIds.length) return { error: "Tick at least one upline to include in this group." } as const;
   const missing = rawPercentages.findIndex((value) => value === "");
   if (missing >= 0) return { error: "Enter a percentage for every ticked upline." } as const;
   return { selectedUplineIds, rawPercentages } as const;
@@ -142,6 +143,33 @@ export async function createShareholderAction(_: ActionState, formData: FormData
   }
 }
 
+const assignShareholderSchema = shareholderSchema.pick({ companyId: true, name: true, percentage: true });
+
+/** Assign a shareholder (usually one already used in another of the user's companies) to this company, copying their contact details. */
+export async function assignShareholderAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("shareholders.create");
+  const parsed = assignShareholderSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message, fieldErrors: parsed.error.flatten().fieldErrors };
+  await requireCompanyAccess(parsed.data.companyId, "FULL");
+  const session = await requireSession();
+  const superAdmin = session.user.roles.some(({ role }) => role.key === "superadmin");
+  const source = await db.shareholder.findFirst({
+    where: { normalizedName: normalizeName(parsed.data.name), deletedAt: null, companyId: { not: parsed.data.companyId }, company: { deletedAt: null, ...(superAdmin ? {} : { userAccess: { some: { userId: session.userId } } }) } },
+    orderBy: { createdAt: "desc" },
+    select: { phone: true, email: true },
+  });
+  try {
+    await db.shareholder.create({ data: { companyId: parsed.data.companyId, name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentage: parsed.data.percentage, phone: source?.phone ?? null, email: source?.email ?? null } });
+    revalidatePath(`/companies/${parsed.data.companyId}`);
+    return { status: "success", message: `${parsed.data.name} was assigned.` };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "This shareholder is already assigned to the company." };
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2004") return { status: "error", message: "Active shareholder percentages cannot exceed 100 percent." };
+    if (error instanceof Error && error.message.includes("cannot exceed 100")) return { status: "error", message: "Active shareholder percentages cannot exceed 100 percent." };
+    throw error;
+  }
+}
+
 export async function distributeProfitAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("shareholders.distribute");
   const parsed = profitDistributionSchema.safeParse(Object.fromEntries(formData));
@@ -151,7 +179,7 @@ export async function distributeProfitAction(_: ActionState, formData: FormData)
   try {
     const result = await distributeCompanyProfit({ ...parsed.data, actorId: session.userId, requestId: randomUUID() });
     revalidatePath(`/companies/${parsed.data.companyId}`);
-    return { status: "success", message: result.duplicate ? "This profit period was already distributed." : `${result.companyProfit.toFixed(2)} distributed across ${result.allocationCount} shareholders.`, data: { idempotencyKey: randomUUID() } };
+    return { status: "success", message: result.duplicate ? "This profit period was already distributed." : `${whole(result.companyProfit)} distributed across ${result.allocationCount} shareholders.`, data: { idempotencyKey: randomUUID() } };
   } catch (error) {
     return { status: "error", message: error instanceof Error ? error.message : "Profit could not be distributed." };
   }
@@ -218,7 +246,19 @@ export async function updateShareholderAction(_: ActionState, formData: FormData
   const shareholder = await db.shareholder.findFirst({ where: { id: parsed.data.shareholderId, deletedAt: null } });
   if (!shareholder) return { status: "error", message: "This shareholder no longer exists." };
   await requireCompanyAccess(shareholder.companyId, "FULL");
-  try { await db.shareholder.update({ where: { id: shareholder.id }, data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentage: parsed.data.percentage, phone: parsed.data.phone ? normalizePhone(parsed.data.phone) : null, email: parsed.data.email ? normalizeEmail(parsed.data.email) : null } }); }
+  const percentChanged = !shareholder.percentage.eq(String(parsed.data.percentage));
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.shareholder.update({ where: { id: shareholder.id }, data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentage: parsed.data.percentage, phone: parsed.data.phone ? normalizePhone(parsed.data.phone) : null, email: parsed.data.email ? normalizeEmail(parsed.data.email) : null } });
+      if (!percentChanged) return;
+      // New % applies only to settlements posted from now on; past amounts keep the % in force when they were posted.
+      const links = await tx.ownerCompany.findMany({ where: { companyId: shareholder.companyId, owner: { normalizedName: shareholder.normalizedName } }, select: { ownerId: true } });
+      for (const link of links) {
+        await tx.ownerCompany.update({ where: { ownerId_companyId: { ownerId: link.ownerId, companyId: shareholder.companyId } }, data: { percentage: parsed.data.percentage } });
+        await recordOwnerShare(tx, link.ownerId, shareholder.companyId, parsed.data.percentage);
+      }
+    });
+  }
   catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "A shareholder with this name already exists." };
     if (overHundred(error)) return { status: "error", message: "Active shareholder percentages cannot exceed 100 percent." };
@@ -226,7 +266,8 @@ export async function updateShareholderAction(_: ActionState, formData: FormData
   }
   await auditCompany(shareholder.companyId, "shareholder.update", "Shareholder", shareholder.id, { oldValues: { name: shareholder.name, percentage: shareholder.percentage.toString() }, newValues: { name: parsed.data.name, percentage: parsed.data.percentage } });
   revalidatePath(`/companies/${shareholder.companyId}`);
-  return { status: "success", message: "Shareholder updated." };
+  revalidatePath("/owners", "layout");
+  return { status: "success", message: percentChanged ? "Shareholder updated. The new share applies to settlements from now on." : "Shareholder updated." };
 }
 
 export async function setShareholderStatusAction(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -255,4 +296,24 @@ export async function deleteShareholderAction(_: ActionState, formData: FormData
   await auditCompany(shareholder.companyId, "shareholder.delete", "Shareholder", shareholder.id, { oldValues: { name: shareholder.name } });
   revalidatePath(`/companies/${shareholder.companyId}`);
   return { status: "success", message: `${shareholder.name} was removed.` };
+}
+
+export async function unassignShareholderAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("shareholders.delete");
+  const shareholderId = String(formData.get("shareholderId") || "");
+  const shareholder = await db.shareholder.findFirst({ where: { id: shareholderId, deletedAt: null } });
+  if (!shareholder) return { status: "error", message: "This shareholder no longer exists." };
+  await requireCompanyAccess(shareholder.companyId, "FULL");
+  if (!shareholder.currentBalance.isZero()) return { status: "error", message: "Clear the balance before unassigning this shareholder." };
+  const links = await db.ownerCompany.findMany({ where: { companyId: shareholder.companyId }, select: { ownerId: true, owner: { select: { name: true } } } });
+  const linkIds = links.filter((link) => normalizeName(link.owner.name) === shareholder.normalizedName).map((link) => link.ownerId);
+  await db.$transaction([
+    db.shareholder.update({ where: { id: shareholder.id }, data: { deletedAt: new Date(), status: "INACTIVE", normalizedName: `${shareholder.normalizedName}~deleted-${shareholder.id.slice(0, 8)}` } }),
+    db.ownerCompany.deleteMany({ where: { companyId: shareholder.companyId, ownerId: { in: linkIds } } }),
+    ...linkIds.map((ownerId) => db.ownerShareHistory.create({ data: { ownerId, companyId: shareholder.companyId, percentage: 0 } })),
+  ]);
+  await auditCompany(shareholder.companyId, "shareholder.unassign", "Shareholder", shareholder.id, { oldValues: { name: shareholder.name, percentage: shareholder.percentage.toString() } });
+  revalidatePath(`/companies/${shareholder.companyId}`);
+  revalidatePath("/owners");
+  return { status: "success", message: `${shareholder.name} was unassigned.` };
 }

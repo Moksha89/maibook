@@ -1,7 +1,7 @@
 import { Children, createElement, forwardRef, isValidElement, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type ElementType, type ReactNode } from "react";
 import { clsx } from "clsx";
 import Link from "next/link";
-import { Ban, Check, Database, Download, Eye, FileBarChart, Filter, KeyRound, LoaderCircle, LogIn, LogOut, Pencil, Plug, Plus, Power, PowerOff, Printer, RefreshCw, RotateCcw, Save, Search, Send, Trash2, Undo2, Upload, X } from "lucide-react";
+import { Ban, Check, Database, Download, Eye, FileBarChart, Filter, KeyRound, LoaderCircle, LogIn, LogOut, Pencil, Plug, Plus, Power, PowerOff, Printer, RefreshCw, RotateCcw, Save, Search, Send, Trash2, Undo2, Unlink, Upload, X } from "lucide-react";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "dangerSoft" | "ghost";
 export type ButtonSize = "sm" | "xs";
@@ -27,6 +27,7 @@ const sizes: Record<ButtonSize, { box: string; circle: string; icon: string }> =
 export type PillIcon = ElementType<{ className?: string; strokeWidth?: number }>;
 
 const iconRules: [RegExp, PillIcon][] = [
+  [/unassign|unlink|detach/i, Unlink],
   [/sign\s?out|log\s?out/i, LogOut],
   [/sign\s?in|log\s?in|verify/i, LogIn],
   [/password/i, KeyRound],

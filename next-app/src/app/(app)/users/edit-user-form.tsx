@@ -21,7 +21,7 @@ export function EditUserForm({ user, roles, companies, modules }: { user: Editab
   return (
     <form action={action} className="rounded-lg border bg-white p-3">
       <input type="hidden" name="userId" value={user.id} />
-      <p className="mb-2 text-xs text-[#647386]">Username <span className="font-mono font-semibold">{user.username}</span> cannot be changed.</p>
+      
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-xs font-bold text-[#0d1a2c]">Display name<Input name="displayName" className="mt-1" defaultValue={user.displayName} required /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Email<Input name="email" type="email" className="mt-1" defaultValue={user.email ?? ""} /></label>
@@ -29,7 +29,7 @@ export function EditUserForm({ user, roles, companies, modules }: { user: Editab
         <label className="text-xs font-bold text-[#0d1a2c]">Role<Select name="roleId" className="mt-1" defaultValue={user.roleId} required>{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</Select></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Device limit<Input name="maxDevices" type="number" min="1" max="10" className="mt-1" defaultValue={user.maxDevices} required /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Account expiry<Input name="expiresAt" type="date" className="mt-1" defaultValue={user.expiresAt} /></label>
-        <label className="text-xs font-bold text-[#0d1a2c] sm:col-span-2">Reset password (optional)<Input name="newPassword" type="password" className="mt-1" autoComplete="new-password" placeholder="Leave blank to keep the current password" /></label>
+        <label className="text-xs font-bold text-[#0d1a2c] sm:col-span-2">Reset password (optional)<Input name="newPassword" type="password" className="mt-1" autoComplete="new-password" /></label>
         <Switch className="mt-5" name="otpEnabled" defaultChecked={user.otpEnabled} label="Require OTP at sign-in" />
       </div>
       <div className="mt-3 rounded-md border p-2">
@@ -38,7 +38,7 @@ export function EditUserForm({ user, roles, companies, modules }: { user: Editab
       </div>
       <details className="mt-3 rounded-md border p-2">
         <summary className="cursor-pointer text-xs font-semibold">Module overrides (optional)</summary>
-        <p className="mt-1 text-[11px] text-[#647386]">Grant or deny a whole module for this user, regardless of their role.</p>
+        
         <div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">{modules.map((module) => <label key={module} className="flex items-center justify-between gap-2 text-xs"><input type="hidden" name="overrideModules" value={module} /><span className="font-medium capitalize">{module.replace("_", " ")}</span><Select name={`override.${module}`} defaultValue={user.overrides[module] ?? ""}  compact><option value="">Role default</option><option value="GRANT">Grant</option><option value="DENY">Deny</option></Select></label>)}</div>
       </details>
       {state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null}

@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { money, nameField, optionalEmail, optionalPhone, pastOrToday, percent, SUM_TOLERANCE } from "./common";
+import { money, upperName, optionalEmail, optionalPhone, pastOrToday, percent, SUM_TOLERANCE } from "./common";
 
 export const uplineSchema = z.object({
   companyId: z.string().uuid(),
-  name: nameField(),
+  name: upperName(),
   percentageRate: percent("Percentage rate"),
 });
 
@@ -12,12 +12,12 @@ export const manualUplineEntrySchema = z.object({
   uplineId: z.string().uuid(),
   amount: money("Amount", { nonZero: true }),
   entryDate: pastOrToday("Entry date"),
-  remarks: z.string().trim().max(500).optional(),
+  remarks: z.string().trim().max(500).transform((value) => value.toUpperCase()).optional(),
 });
 
 export const shareholderSchema = z.object({
   companyId: z.string().uuid(),
-  name: nameField(),
+  name: upperName(),
   percentage: percent("Percentage", { positive: true }),
   phone: optionalPhone,
   email: optionalEmail,
@@ -32,7 +32,7 @@ export const profitDistributionSchema = z.object({
 
 export const uplineGroupSchema = z.object({
   companyId: z.string().uuid(),
-  name: nameField(),
-  uplineIds: z.array(z.string().uuid()).min(1, "Pick at least one upline."),
-  percentages: z.array(percent("Member percentage", { positive: true })).min(1, "Pick at least one upline."),
-}).refine((value) => value.uplineIds.length === value.percentages.length, "Every member requires a percentage.").refine((value) => Math.abs(value.percentages.reduce((sum, percentage) => sum + percentage, 0) - 100) <= SUM_TOLERANCE, "Member percentages must add up to exactly 100%.");
+  name: upperName(),
+  uplineIds: z.array(z.string().uuid()),
+  percentages: z.array(percent("Member percentage", { positive: true })),
+}).refine((value) => value.uplineIds.length === value.percentages.length, "Every member requires a percentage.").refine((value) => !value.percentages.length || Math.abs(value.percentages.reduce((sum, percentage) => sum + percentage, 0) - 100) <= SUM_TOLERANCE, "Member percentages must add up to exactly 100%.");

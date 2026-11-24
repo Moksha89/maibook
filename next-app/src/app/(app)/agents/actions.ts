@@ -143,7 +143,7 @@ export async function deleteAgentAction(_: ActionState, formData: FormData): Pro
   if (identifiers) return { status: "error", message: "Remove this agent's IDs first." };
   await db.$transaction([
     db.companyAgent.updateMany({ where: { agentId, removedAt: null }, data: { removedAt: new Date() } }),
-    db.agent.update({ where: { id: agentId }, data: { deletedAt: new Date(), status: "INACTIVE", normalizedName: `${agent.normalizedName}~deleted-${agent.id.slice(0, 8)}` } }),
+    db.agent.update({ where: { id: agentId }, data: { deletedAt: new Date(), deletedById: session.userId, status: "INACTIVE", normalizedName: `${agent.normalizedName}~deleted-${agent.id.slice(0, 8)}` } }),
     db.auditLog.create({ data: { actorId: session.userId, action: "agent.delete", entityType: "Agent", entityId: agentId, requestId: randomUUID(), oldValues: { name: agent.name } } }),
   ]);
   refresh();

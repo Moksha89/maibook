@@ -95,13 +95,14 @@ export function calculateSettlement(
   const absoluteAmount = decimal(amount).abs().toDecimalPlaces(8);
   const agentRate = assertPercentage(agentPercentage, "Agent percentage");
   const uplineRate = assertPercentage(uplinePercentage, "Upline percentage");
-  const agentShare = absoluteAmount.mul(agentRate).div(100).toDecimalPlaces(8);
-  const companyShare = absoluteAmount.sub(agentShare);
+  // 1) Upline share = settlement × site upline %. 2) Agent commission = settlement × agent %. 3) Company keeps the remainder.
   const uplineShare = absoluteAmount.mul(uplineRate).div(100).toDecimalPlaces(8);
-  const companyProfit = companyShare.sub(uplineShare);
+  const agentShare = absoluteAmount.mul(agentRate).div(100).toDecimalPlaces(8);
+  const companyProfit = absoluteAmount.sub(uplineShare).sub(agentShare);
+  const companyShare = companyProfit;
 
   if (companyProfit.lt(0)) {
-    throw new Error("Upline share cannot exceed the company share.");
+    throw new Error("Upline share and agent commission cannot exceed the settlement amount.");
   }
 
   return { absoluteAmount, agentShare, companyShare, uplineShare, companyProfit };

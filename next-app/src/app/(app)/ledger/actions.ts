@@ -28,6 +28,7 @@ export async function createTransferAction(_: ActionState, formData: FormData): 
   const session = await requireSession();
   try {
     await postAgentTransfer({ ...parsed.data, actorId: session.userId, requestId: randomUUID() });
+    revalidatePath("/companies", "layout");
     revalidatePath("/ledger");
     revalidatePath("/agents");
     return { status: "success", message: "Transfer posted and balances recalculated.", data: { idempotencyKey: randomUUID() } };
@@ -43,6 +44,7 @@ export async function deleteLedgerEntryAction(formData: FormData) {
   const entryId = String(formData.get("entryId") || "");
   await requireEntryAccess(entryId);
   await softDeleteLedgerEntry(entryId, session.userId, randomUUID());
+  revalidatePath("/companies", "layout");
   revalidatePath("/ledger");
   revalidatePath("/agents");
 }
@@ -53,6 +55,7 @@ export async function restoreLedgerEntryAction(formData: FormData) {
   const entryId = String(formData.get("entryId") || "");
   await requireEntryAccess(entryId);
   await restoreLedgerEntry(entryId, session.userId, randomUUID());
+  revalidatePath("/companies", "layout");
   revalidatePath("/ledger");
   revalidatePath("/agents");
 }
@@ -67,6 +70,7 @@ export async function updateLedgerEntryAction(_: ActionState, formData: FormData
     await updateAgentTransfer(parsed.data.entryId, { coins: parsed.data.coins, rate: parsed.data.rate, entryDate: parsed.data.entryDate, remarks: parsed.data.remarks, actorId: session.userId, requestId: randomUUID() });
     revalidatePath("/ledger");
     revalidatePath(`/ledger/${parsed.data.entryId}/edit`);
+    revalidatePath("/companies", "layout");
     return { status: "success", message: "Transfer updated and all later balances recalculated." };
   } catch (error) { return { status: "error", message: error instanceof Error ? error.message : "The transfer could not be updated." }; }
 }

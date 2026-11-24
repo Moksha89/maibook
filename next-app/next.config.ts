@@ -13,8 +13,8 @@ const nextConfig: NextConfig = {
   experimental: {
     authInterrupts: true,
     serverActions: { bodySizeLimit: "512mb" },
-    // Keep visited/prefetched pages in the browser's router cache briefly so sidebar navigation is instant. Mutations clear it.
-    staleTimes: { dynamic: 30, static: 60 },
+    // Dynamic pages always refetch on navigation so newly added records show immediately.
+    staleTimes: { dynamic: 0, static: 30 },
   },
   turbopack: {
     root: projectRoot,

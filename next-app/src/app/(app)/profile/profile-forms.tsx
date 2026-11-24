@@ -38,7 +38,7 @@ export function ChangePasswordForm() {
         <label className="text-xs font-bold text-[#0d1a2c]">New password<Input name="newPassword" type="password" autoComplete="new-password" className="mt-1" required /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Confirm new password<Input name="confirmPassword" type="password" autoComplete="new-password" className="mt-1" required /></label>
       </div>
-      <p className="mt-2 text-[11px] text-[#647386]">At least 12 characters with upper and lower case letters, a number and a symbol.</p>
+      
       <Feedback state={state} />
       <FormFooter><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}Change password</Button></FormFooter>
     </form>

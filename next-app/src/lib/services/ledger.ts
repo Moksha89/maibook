@@ -52,10 +52,11 @@ export async function postAgentTransfer(input: PostAgentTransferInput) {
       const receiver = assignments.find((assignment) => assignment.agentId === input.receiverAgentId)!;
       const senderOpening = decimal(sender.currentBalance.toString());
       const receiverOpening = decimal(receiver.currentBalance.toString());
-      const senderClosing = senderOpening.sub(coins);
-      const receiverClosing = receiverOpening.add(coins);
       const senderCash = calculateCashValue(coins.neg(), rate);
       const receiverCash = calculateCashValue(coins, rate);
+      // Running balances are kept in money (coins × rate): credit adds, debit subtracts.
+      const senderClosing = senderOpening.add(senderCash);
+      const receiverClosing = receiverOpening.add(receiverCash);
       const senderAmounts = splitCreditDebit(senderCash);
       const receiverAmounts = splitCreditDebit(receiverCash);
 
@@ -95,7 +96,7 @@ export async function recalculateAgentBalances(tx: TransactionClient, companyId:
   let balance = decimal(assignment.openingBalance.toString());
   for (const line of lines) {
     const openingBalance = balance;
-    balance = openingBalance.add(line.coins.toString());
+    balance = openingBalance.add(line.cashValue.toString()); // money: coins × rate
     if (!line.openingBalance.eq(openingBalance.toString()) || !line.closingBalance.eq(balance.toString())) {
       await tx.ledgerEntryLine.update({ where: { id: line.id }, data: { openingBalance: prismaDecimal(openingBalance), closingBalance: prismaDecimal(balance) } });
     }
@@ -167,7 +168,7 @@ export async function recalculateNonAgentBalances(tx: TransactionClient, company
   for (const line of lines) {
     const account = line.uplineId ?? "COMPANY";
     const opening = balances.get(account) ?? decimal(0);
-    const closing = opening.add(line.coins.toString());
+    const closing = opening.add(line.cashValue.toString()); // money: coins × rate
     if (!line.openingBalance.eq(opening.toString()) || !line.closingBalance.eq(closing.toString())) {
       await tx.ledgerEntryLine.update({ where: { id: line.id }, data: { openingBalance: prismaDecimal(opening), closingBalance: prismaDecimal(closing) } });
     }

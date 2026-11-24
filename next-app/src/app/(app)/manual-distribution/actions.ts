@@ -9,7 +9,7 @@ import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { distributeManualAgentAmount } from "@/lib/services/manual-distribution";
 
-const schema = z.object({ agentId: z.string().uuid(), amount: z.coerce.number().finite().refine((value) => value !== 0, "Amount cannot be zero."), entryDate: z.coerce.date(), remarks: z.string().trim().max(500).optional(), idempotencyKey: z.string().uuid() });
+const schema = z.object({ agentId: z.string().uuid(), amount: z.coerce.number().finite().refine((value) => value !== 0, "Amount cannot be zero."), entryDate: z.coerce.date(), remarks: z.string().trim().max(500).transform((value) => value.toUpperCase()).optional(), idempotencyKey: z.string().uuid() });
 
 export async function distributeManualAgentAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("ledger.create");

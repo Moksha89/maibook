@@ -82,6 +82,7 @@ enum UplineEntrySource {
 enum ShareholderEntrySource {
   SETTLEMENT_PROFIT
   MANUAL_ADJUSTMENT
+  EXPENSE
 }
 
 enum ReportType {
@@ -91,6 +92,7 @@ enum ReportType {
   PROFIT_DISTRIBUTION
   UPLINE
   COMPANY_SUMMARY
+  COMPANY_PNL
   CUSTOM
 }
 
@@ -343,6 +345,7 @@ model Company {
   createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt          DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  deletedById        String?            @map("deleted_by_id") @db.Uuid
   userAccess         CompanyAccess[]
   agents             CompanyAgent[]
   ledgerEntries      LedgerEntry[]
@@ -355,8 +358,12 @@ model Company {
   shareholders       Shareholder[]
   shareholderEntries ShareholderEntry[]
   owners             Owner[]
+  ownerLinks         OwnerCompany[]
+  ownerShareHistory  OwnerShareHistory[]
+  ownerEntries       OwnerEntry[]
   reports            GeneratedReport[]
   auditLogs          AuditLog[]
+  expenses           Expense[]
 
   @@index([status, deletedAt])
   @@map("companies")
@@ -385,6 +392,7 @@ model Agent {
   createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt        DateTime?              @map("deleted_at") @db.Timestamptz(6)
+  deletedById      String?                @map("deleted_by_id") @db.Uuid
   companies        CompanyAgent[]
   ledgerLines      LedgerEntryLine[]
   identifiers      AgentIdentifier[]
@@ -465,8 +473,9 @@ model LedgerEntryLine {
 model AgentIdentifier {
   id              String         @id @default(uuid()) @db.Uuid
   legacyId        String?        @unique @map("legacy_id")
-  companyId       String         @map("company_id") @db.Uuid
-  agentId         String         @map("agent_id") @db.Uuid
+  companyId       String?        @map("company_id") @db.Uuid
+  siteId          String?        @map("site_id") @db.Uuid
+  agentId         String?        @map("agent_id") @db.Uuid
   value           String
   normalizedValue String         @map("normalized_value")
   type            IdentifierType
@@ -476,12 +485,15 @@ model AgentIdentifier {
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt       DateTime?      @map("deleted_at") @db.Timestamptz(6)
-  company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  agent           Agent          @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  deletedById     String?        @map("deleted_by_id") @db.Uuid
+  company         Company?       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  agent           Agent?         @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  site            Site?          @relation(fields: [siteId], references: [id], onDelete: SetNull)
   settlements     Settlement[]
 
   @@unique([companyId, normalizedValue])
   @@index([agentId, status])
+  @@index([siteId])
   @@map("agent_ids")
 }
 
@@ -547,6 +559,7 @@ model UplineGroup {
   updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   company        Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
   members        UplineGroupMember[]
+  sites          Site[]
 
   @@unique([companyId, normalizedName])
   @@map("upline_groups")
@@ -608,6 +621,7 @@ model ShareholderEntry {
   companyId       String                 @map("company_id") @db.Uuid
   shareholderId   String                 @map("shareholder_id") @db.Uuid
   settlementId    String?                @map("settlement_id") @db.Uuid
+  expenseId       String?                @map("expense_id") @db.Uuid
   distributionKey String?                @unique @map("distribution_key")
   source          ShareholderEntrySource
   entryDate       DateTime               @map("entry_date") @db.Date
@@ -622,24 +636,30 @@ model ShareholderEntry {
   company         Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
   shareholder     Shareholder            @relation(fields: [shareholderId], references: [id], onDelete: Restrict)
   settlement      Settlement?            @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  expense         Expense?               @relation(fields: [expenseId], references: [id], onDelete: Restrict)
 
   @@index([companyId, entryDate, source, deletedAt])
   @@index([companyId, periodStart, periodEnd, deletedAt])
+  @@index([expenseId])
   @@map("shareholder_entries")
 }
 
 model Owner {
   id             String                 @id @default(uuid()) @db.Uuid
-  companyId      String                 @map("company_id") @db.Uuid
+  companyId      String?                @map("company_id") @db.Uuid
+  createdById    String?                @map("created_by_id") @db.Uuid
   name           String
   normalizedName String                 @map("normalized_name")
   email          String?
   status         RecordStatus           @default(ACTIVE)
   createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company        Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company        Company?               @relation(fields: [companyId], references: [id], onDelete: Restrict)
   phoneNumbers   OwnerPhoneNumber[]
   assignments    OwnerAgentAssignment[]
+  companyLinks   OwnerCompany[]
+  shareHistory   OwnerShareHistory[]
+  entries        OwnerEntry[]
 
   @@unique([companyId, normalizedName])
   @@map("owners")
@@ -655,6 +675,39 @@ model OwnerPhoneNumber {
 
   @@unique([ownerId, phone])
   @@map("owner_phone_numbers")
+}
+
+model OwnerCompany {
+  ownerId    String   @map("owner_id") @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  percentage Decimal  @default(0) @db.Decimal(7, 4)
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  owner      Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([ownerId, companyId])
+  @@index([companyId])
+  @@map("owner_companies")
+}
+
+/// Payments to (PAID) or from (RECEIVED) an owner or business partner.
+model OwnerEntry {
+  id          String    @id @default(uuid()) @db.Uuid
+  ownerId     String    @map("owner_id") @db.Uuid
+  companyId   String?   @map("company_id") @db.Uuid
+  entryDate   DateTime  @map("entry_date") @db.Date
+  direction   String
+  amount      Decimal   @db.Decimal(30, 8)
+  remarks     String?
+  createdById String?   @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  owner       Owner     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  company     Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, entryDate])
+  @@index([companyId])
+  @@map("owner_entries")
 }
 
 model OwnerAgentAssignment {
@@ -838,4 +891,56 @@ model Job {
 
   @@index([status, runAfter])
   @@map("jobs")
+}
+
+/// Share % in force for an owner in a company from effectiveFrom onward. Past settlements keep the % that applied when they were posted.
+model OwnerShareHistory {
+  id            String   @id @default(uuid()) @db.Uuid
+  ownerId       String   @map("owner_id") @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  percentage    Decimal  @db.Decimal(7, 4)
+  effectiveFrom DateTime @default(now()) @map("effective_from") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  owner         Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, companyId, effectiveFrom])
+  @@map("owner_share_history")
+}
+
+model Site {
+  id               String       @id @default(uuid()) @db.Uuid
+  name             String
+  normalizedName   String       @unique @map("normalized_name")
+  uplinePercentage Decimal      @map("upline_percentage") @db.Decimal(7, 4)
+  uplineGroupId    String?      @map("upline_group_id") @db.Uuid
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  uplineGroup      UplineGroup? @relation(fields: [uplineGroupId], references: [id], onDelete: SetNull)
+  identifiers      AgentIdentifier[]
+
+  @@index([uplineGroupId])
+  @@map("sites")
+}
+
+/// A company expense (company only: amount, category, remarks). Final company PNL = settlement profit - expenses; each expense is charged to the
+/// company's active shareholders by percentage (EXPENSE shareholder entries). Soft-deleted, never removed.
+model Expense {
+  id           String             @id @default(uuid()) @db.Uuid
+  companyId    String             @map("company_id") @db.Uuid
+  amount       Decimal            @db.Decimal(30, 8)
+  /// Set automatically to the IST day the expense was entered (there is no date input).
+  expenseDate  DateTime           @map("expense_date") @db.Date
+  category     String
+  remarks      String?
+  createdById  String?            @map("created_by_id") @db.Uuid
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  deletedById  String?            @map("deleted_by_id") @db.Uuid
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  allocations  ShareholderEntry[]
+
+  @@index([companyId, deletedAt, expenseDate])
+  @@map("expenses")
 }
