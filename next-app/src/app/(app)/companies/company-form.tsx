@@ -20,6 +20,9 @@ export function CompanyForm() {
         <label className="text-xs font-semibold text-[#3b4d63]">Code<Input name="code" className="mt-1" /></label>
         <label className="text-xs font-semibold text-[#3b4d63]">Currency<Input name="currency" className="mt-1" defaultValue="INR" maxLength={3} required /></label>
         <label className="text-xs font-semibold text-[#3b4d63]">Default rate<Input name="defaultRate" className="mt-1" type="number" min="0" step="0.00000001" /></label>
+        <label className="text-xs font-semibold text-[#3b4d63]">Contact phone<Input name="contactPhone" className="mt-1" maxLength={30} /></label>
+        <label className="text-xs font-semibold text-[#3b4d63]">Contact email<Input name="contactEmail" type="email" className="mt-1" maxLength={254} /></label>
+        <label className="text-xs font-semibold text-[#3b4d63] sm:col-span-2">Notes<Input name="notes" className="mt-1" maxLength={2000} /></label>
       </div>
       {state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null}
       {state.fieldErrors ? <p className="mt-2 text-xs text-[#b42318]">Check the highlighted company details and try again.</p> : null}

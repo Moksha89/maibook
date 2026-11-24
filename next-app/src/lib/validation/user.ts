@@ -22,3 +22,16 @@ export const updateUserSchema = z.object({
   expiresAt: z.preprocess((value) => value === "" ? undefined : value, z.coerce.date().optional()),
   newPassword: z.union([z.literal(""), passwordSchema]).optional(),
 });
+
+export const profileSchema = z.object({
+  displayName: z.string().trim().min(2).max(120),
+  email: z.union([z.literal(""), z.string().email().max(254)]).optional(),
+  phone: z.string().trim().max(30).optional(),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Enter your current password.").max(128),
+  newPassword: passwordSchema,
+  confirmPassword: z.string(),
+}).refine((value) => value.newPassword === value.confirmPassword, { path: ["confirmPassword"], message: "The new passwords do not match." })
+  .refine((value) => value.newPassword !== value.currentPassword, { path: ["newPassword"], message: "Choose a password different from the current one." });

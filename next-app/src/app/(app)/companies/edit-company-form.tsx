@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import type { ActionState } from "@/lib/actions/types";
 import { updateCompanyAction } from "./actions";
 
-export interface EditableCompany { id: string; name: string; code: string | null; currency: string; defaultRate: string | null; reportHeader: string | null; reportFooter: string | null }
+export interface EditableCompany { id: string; name: string; code: string | null; currency: string; defaultRate: string | null; reportHeader: string | null; reportFooter: string | null; contactPhone: string | null; contactEmail: string | null; notes: string | null }
 
 export function EditCompanyForm({ company }: { company: EditableCompany }) {
   const [state, action, pending] = useActionState(updateCompanyAction, {} as ActionState);
@@ -20,6 +20,9 @@ export function EditCompanyForm({ company }: { company: EditableCompany }) {
         <label className="text-xs font-semibold text-[#3b4d63]">Code<Input name="code" className="mt-1" defaultValue={company.code ?? ""} /></label>
         <label className="text-xs font-semibold text-[#3b4d63]">Currency<Input name="currency" className="mt-1" defaultValue={company.currency} maxLength={3} required /></label>
         <label className="text-xs font-semibold text-[#3b4d63]">Default rate<Input name="defaultRate" className="mt-1" type="number" min="0" step="0.00000001" defaultValue={company.defaultRate ?? ""} /></label>
+        <label className="text-xs font-semibold text-[#3b4d63]">Contact phone<Input name="contactPhone" className="mt-1" defaultValue={company.contactPhone ?? ""} maxLength={30} /></label>
+        <label className="text-xs font-semibold text-[#3b4d63]">Contact email<Input name="contactEmail" type="email" className="mt-1" defaultValue={company.contactEmail ?? ""} maxLength={254} /></label>
+        <label className="text-xs font-semibold text-[#3b4d63] sm:col-span-2">Notes<Input name="notes" className="mt-1" defaultValue={company.notes ?? ""} maxLength={2000} /></label>
         <label className="text-xs font-semibold text-[#3b4d63] sm:col-span-2">Report header<Input name="reportHeader" className="mt-1" defaultValue={company.reportHeader ?? ""} maxLength={240} /></label>
         <label className="text-xs font-semibold text-[#3b4d63] sm:col-span-2">Report footer<Input name="reportFooter" className="mt-1" defaultValue={company.reportFooter ?? ""} maxLength={240} /></label>
       </div>

@@ -4,6 +4,9 @@ export const companySchema = z.object({
   name: z.string().trim().min(2).max(120),
   code: z.string().trim().max(30).optional(),
   currency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
+  contactPhone: z.string().trim().max(30).optional(),
+  contactEmail: z.union([z.literal(""), z.string().trim().email().max(254)]).optional(),
+  notes: z.string().trim().max(2000).optional(),
   defaultRate: z.union([z.literal(""), z.coerce.number().nonnegative().max(1_000_000)]).optional(),
 });
 
