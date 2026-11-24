@@ -22,7 +22,7 @@ export default async function SettingsPage() {
   const email = map.get("integrations.email") || {};
   const sms = map.get("integrations.sms") || {};
   const whatsapp = map.get("integrations.whatsapp") || {};
-  const values = { title: text(branding.title, "iBook"), legalName: text(branding.legalName), supportEmail: text(contact.email), supportPhone: text(contact.phone), reportFooter: text(reportBranding.footer), emailEnabled: bool(email.enabled), smsEnabled: bool(sms.enabled), whatsappEnabled: bool(whatsapp.enabled) };
+  const values = { title: text(branding.title, "Maibook"), legalName: text(branding.legalName), supportEmail: text(contact.email), supportPhone: text(contact.phone), reportFooter: text(reportBranding.footer), emailEnabled: bool(email.enabled), smsEnabled: bool(sms.enabled), whatsappEnabled: bool(whatsapp.enabled) };
   const providers = [
     { name: "Email", configured: Boolean(process.env.SENDGRID_API_KEY), enabled: values.emailEnabled },
     { name: "SMS OTP", configured: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN), enabled: values.smsEnabled },

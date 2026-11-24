@@ -7,11 +7,13 @@ import { FormModal } from "@/components/ui/form-modal";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ActionButton } from "@/components/ui/action-button";
 import { hasPermission, requirePermission } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { changeCompanyStatusAction } from "./actions";
+import { deleteCompanyAction, setCompanyStatusAction } from "./actions";
 import { CompanyForm } from "./company-form";
+import { EditCompanyForm } from "./edit-company-form";
 
 export const metadata: Metadata = { title: "Companies" };
 
@@ -20,7 +22,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
   const session = await requireSession();
   const { q = "" } = await searchParams;
   const superAdmin = session.user.roles.some(({ role }) => role.key === "superadmin");
-  const [canCreate, companies] = await Promise.all([hasPermission("companies.create"), db.company.findMany({
+  const [canCreate, canUpdate, canDelete, companies] = await Promise.all([hasPermission("companies.create"), hasPermission("companies.update"), hasPermission("companies.delete"), db.company.findMany({
     where: {
       deletedAt: null,
       ...(superAdmin ? {} : { userAccess: { some: { userId: session.userId } } }),
@@ -42,7 +44,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-xs">
             <thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2">Company</th><th className="px-3 py-2">Code</th><th className="px-3 py-2">Currency</th><th className="px-3 py-2 text-right">Agents</th><th className="px-3 py-2 text-right">IDs</th><th className="px-3 py-2 text-right">Entries</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Actions</th></tr></thead>
-            <tbody>{companies.map((company) => <tr key={company.id} className="border-t hover:bg-[#fafbfc]"><td className="px-3 py-2 font-semibold"><Link href={`/companies/${company.id}`} className="text-[#8a6012] hover:underline">{company.name}</Link></td><td className="px-3 py-2 font-mono text-[11px]">{company.code ?? "—"}</td><td className="px-3 py-2">{company.currency}</td><td className="px-3 py-2 text-right font-mono">{company._count.agents}</td><td className="px-3 py-2 text-right font-mono">{company._count.identifiers}</td><td className="px-3 py-2 text-right font-mono">{company._count.ledgerEntries}</td><td className="px-3 py-2"><StatusBadge tone={company.status === "ACTIVE" ? "success" : "neutral"}>{company.status}</StatusBadge></td><td className="px-3 py-2"><div className="flex justify-end gap-1"><Link href={`/companies/${company.id}`} className="inline-flex h-7 items-center rounded border bg-white px-2 font-semibold text-[#203650] hover:bg-[#f4f6f8]">Open</Link><form action={changeCompanyStatusAction}><input type="hidden" name="companyId" value={company.id} /><input type="hidden" name="status" value={company.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"} /><button className="h-7 rounded border bg-white px-2 font-semibold text-[#53657a] hover:bg-[#f4f6f8]">{company.status === "ACTIVE" ? "Deactivate" : "Activate"}</button></form></div></td></tr>)}</tbody>
+            <tbody>{companies.map((company) => <tr key={company.id} className="border-t hover:bg-[#fafbfc]"><td className="px-3 py-2 font-semibold"><Link href={`/companies/${company.id}`} className="text-[#8a6012] hover:underline">{company.name}</Link></td><td className="px-3 py-2 font-mono text-[11px]">{company.code ?? "—"}</td><td className="px-3 py-2">{company.currency}</td><td className="px-3 py-2 text-right font-mono">{company._count.agents}</td><td className="px-3 py-2 text-right font-mono">{company._count.identifiers}</td><td className="px-3 py-2 text-right font-mono">{company._count.ledgerEntries}</td><td className="px-3 py-2"><StatusBadge tone={company.status === "ACTIVE" ? "success" : "neutral"}>{company.status}</StatusBadge></td><td className="px-3 py-2"><div className="flex justify-end gap-1"><Link href={`/companies/${company.id}`} className="inline-flex h-7 items-center rounded border bg-white px-2 font-semibold text-[#203650] hover:bg-[#f4f6f8]">Open</Link>{canUpdate ? <FormModal compact trigger="Edit" title={`Edit ${company.name}`}><EditCompanyForm company={{ id: company.id, name: company.name, code: company.code, currency: company.currency, defaultRate: company.defaultRate?.toString() ?? null, reportHeader: company.reportHeader, reportFooter: company.reportFooter }} /></FormModal> : null}{canUpdate ? <ActionButton action={setCompanyStatusAction} fields={{ companyId: company.id, status: company.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" }} label={company.status === "ACTIVE" ? "Deactivate" : "Activate"} /> : null}{canDelete ? <ActionButton action={deleteCompanyAction} fields={{ companyId: company.id }} label="Remove" danger confirmMessage={`Remove ${company.name}? This cannot be undone.`} /> : null}</div></td></tr>)}</tbody>
           </table>
         </div>
         {!companies.length ? <p className="px-3 py-8 text-center text-xs text-[#647386]">No companies match this view.</p> : null}

@@ -116,7 +116,7 @@ async function seedSuperAdmin(superAdminRoleId: string) {
 
 async function seedSettings() {
   const settings = [
-    ["site.branding", { title: "iBook", compactInterface: true, primaryColor: "#c9952e" }],
+    ["site.branding", { title: "Maibook", compactInterface: true, primaryColor: "#c9952e" }],
     ["integrations.email", { enabled: false, provider: "sendgrid" }],
     ["integrations.sms", { enabled: false, provider: "twilio" }],
     ["integrations.whatsapp", { enabled: false, reportModes: ["TEXT", "IMAGE", "BOTH"] }],

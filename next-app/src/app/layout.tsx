@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
+import { EnterNavigation } from "@/components/ui/enter-navigation";
 import "./globals.css";
 
 const instrumentSans = Instrument_Sans({
@@ -14,7 +15,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "iBook", template: "%s | iBook" },
+  title: { default: "Maibook", template: "%s | Maibook" },
   description: "Company ledger, settlement, reporting, and operations platform",
 };
 
@@ -24,7 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       lang="en"
       className={`${instrumentSans.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full"><EnterNavigation />{children}</body>
     </html>
   );
 }

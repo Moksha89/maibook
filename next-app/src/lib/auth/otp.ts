@@ -20,7 +20,7 @@ export async function createLoginChallenge(userId: string, phone: string | null)
   const code = randomInt(100000, 1000000).toString();
   const challenge = await db.otpChallenge.create({ data: { userId, purpose: "LOGIN", codeHash: "pending", expiresAt: new Date(Date.now() + 5 * 60_000) } });
   await db.otpChallenge.update({ where: { id: challenge.id }, data: { codeHash: hashCode(challenge.id, code) } });
-  try { await sendSms(phone, `Your iBook verification code is ${code}. It expires in 5 minutes.`); } catch (error) { await db.otpChallenge.update({ where: { id: challenge.id }, data: { status: "EXPIRED" } }); throw error; }
+  try { await sendSms(phone, `Your Maibook verification code is ${code}. It expires in 5 minutes.`); } catch (error) { await db.otpChallenge.update({ where: { id: challenge.id }, data: { status: "EXPIRED" } }); throw error; }
   return challenge.id;
 }
 

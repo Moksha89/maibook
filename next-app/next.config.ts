@@ -7,7 +7,7 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: false,
-  experimental: { authInterrupts: true },
+  experimental: { authInterrupts: true, serverActions: { bodySizeLimit: "512mb" } },
   turbopack: {
     root: projectRoot,
     rules: {
