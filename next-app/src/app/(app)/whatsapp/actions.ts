@@ -9,7 +9,7 @@ import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions"
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { normalizePhone } from "@/lib/domain/normalization";
-import { initializeWhatsAppSession, logoutWhatsAppSession } from "@/lib/services/whatsapp-bridge";
+import { initializeWhatsAppSession, logoutWhatsAppSession, whatsAppSessionStatus } from "@/lib/services/whatsapp-bridge";
 
 async function defaultConnection() { return db.whatsAppConnection.upsert({ where: { name: "Primary" }, update: {}, create: { name: "Primary", sessionKey: randomUUID() } }); }
 
@@ -54,6 +54,9 @@ export async function queueWhatsAppDeliveryAction(_: ActionState, formData: Form
     return { status: "error", message: "Deliveries were recorded but not sent because WhatsApp is disabled in this environment." };
   }
   if (connection.status !== "CONNECTED") return { status: "error", message: "Connect WhatsApp before sending a report." };
+  const live = await whatsAppSessionStatus(connection.sessionKey);
+  if (live === "UNREACHABLE") return { status: "error", message: "The WhatsApp service is not responding right now. Nothing was queued; try again in a minute." };
+  if (live !== "CONNECTED") return { status: "error", message: "WhatsApp is not connected on the server. Open the WhatsApp page, press Initialize and scan the QR code again." };
   const queued = await db.$transaction(async (tx) => {
     const records = [];
     for (const recipient of recipients) {

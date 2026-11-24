@@ -1,32 +1,33 @@
 import { z } from "zod";
+import { nameField, optionalEmail, optionalPhone } from "./common";
 import { passwordSchema } from "./auth";
 
 export const createUserSchema = z.object({
-  username: z.string().trim().min(3).max(80).regex(/^[A-Za-z0-9._-]+$/, "Use letters, numbers, dots, dashes, or underscores."),
-  displayName: z.string().trim().min(2).max(120),
-  email: z.union([z.literal(""), z.string().email().max(254)]).optional(),
-  phone: z.string().trim().max(30).optional(),
+  username: z.string().trim().min(3, "Username must be at least 3 characters.").max(80, "Username is too long.").regex(/^[A-Za-z0-9._-]+$/, "Use letters, numbers, dots, dashes, or underscores."),
+  displayName: nameField("Display name"),
+  email: optionalEmail,
+  phone: optionalPhone,
   password: passwordSchema,
   roleId: z.string().uuid(),
-  maxDevices: z.coerce.number().int().min(1).max(10),
+  maxDevices: z.coerce.number().int("Device limit must be a whole number.").min(1, "Device limit must be between 1 and 10.").max(10, "Device limit must be between 1 and 10."),
   expiresAt: z.preprocess((value) => value === "" ? undefined : value, z.coerce.date().optional()),
 });
 
 export const updateUserSchema = z.object({
   userId: z.string().uuid(),
-  displayName: z.string().trim().min(2).max(120),
-  email: z.union([z.literal(""), z.string().email().max(254)]).optional(),
-  phone: z.string().trim().max(30).optional(),
+  displayName: nameField("Display name"),
+  email: optionalEmail,
+  phone: optionalPhone,
   roleId: z.string().uuid(),
-  maxDevices: z.coerce.number().int().min(1).max(10),
+  maxDevices: z.coerce.number().int("Device limit must be a whole number.").min(1, "Device limit must be between 1 and 10.").max(10, "Device limit must be between 1 and 10."),
   expiresAt: z.preprocess((value) => value === "" ? undefined : value, z.coerce.date().optional()),
   newPassword: z.union([z.literal(""), passwordSchema]).optional(),
 });
 
 export const profileSchema = z.object({
-  displayName: z.string().trim().min(2).max(120),
-  email: z.union([z.literal(""), z.string().email().max(254)]).optional(),
-  phone: z.string().trim().max(30).optional(),
+  displayName: nameField("Display name"),
+  email: optionalEmail,
+  phone: optionalPhone,
 });
 
 export const changePasswordSchema = z.object({

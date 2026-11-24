@@ -30,8 +30,8 @@ export function TransferForm({ companies, initialIdempotencyKey }: { companies: 
         <label className="text-xs font-bold text-[#0d1a2c]">Company<Select name="companyId" className="mt-1" value={companyId} onChange={(event) => setCompanyId(event.target.value)} required>{companies.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</Select></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Sender<Select name="senderAgentId" className="mt-1" required><option value="">Select</option>{company?.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</Select></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Receiver<Select name="receiverAgentId" className="mt-1" required><option value="">Select</option>{company?.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</Select></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">Coins<Input name="coins" className="mt-1" type="number" min="0.00000001" step="0.00000001" required /></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">Rate<Input name="rate" className="mt-1" type="number" min="0" step="0.00000001" defaultValue={company?.defaultRate ?? ""} required /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Coins<Input name="coins" className="mt-1" type="number" min="0.01" step="0.01" required /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Rate<Input name="rate" className="mt-1" type="number" min="0" step="0.0001" defaultValue={company?.defaultRate ?? ""} required /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Date<Input name="entryDate" className="mt-1" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Remarks<Input name="remarks" className="mt-1" maxLength={500} /></label>
       </div>

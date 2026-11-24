@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { unauthorized } from "next/navigation";
@@ -71,7 +72,8 @@ export async function createSession(userId: string, maxDevices: number, context:
   });
 }
 
-export async function getSession() {
+/** One database lookup per request: layout, page and permission checks all share the result. */
+export const getSession = cache(async function getSession() {
   await connection();
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -93,7 +95,7 @@ export async function getSession() {
       },
     },
   });
-}
+});
 
 export async function requireSession() {
   const session = await getSession();

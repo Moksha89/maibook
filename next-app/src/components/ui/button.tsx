@@ -111,7 +111,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 type LinkButtonProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & { href: string; variant?: ButtonVariant; size?: ButtonSize; icon?: PillIcon; iconOnly?: boolean; prefetch?: boolean };
 
 /** Anchor styled as a pill. In-app pages use client navigation; API/file URLs use a plain anchor so downloads work. */
-export function LinkButton({ href, className, variant = "secondary", size = "sm", icon, iconOnly = false, children, prefetch, ...props }: LinkButtonProps) {
+export function LinkButton({ href, className, variant = "secondary", size = "sm", icon, iconOnly = false, children, prefetch = false, ...props }: LinkButtonProps) {
   const plain = href.startsWith("/api/") || props.download !== undefined || /^https?:/.test(href);
   if (iconOnly) {
     const parsed = splitChildren(children);

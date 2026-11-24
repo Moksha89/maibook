@@ -1,10 +1,12 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { db } from "@/lib/db";
 import { forbidden } from "next/navigation";
 import { requireSession } from "./session";
 
-export async function hasPermission(permissionKey: string) {
+export const hasPermission = cache(async function hasPermission(permissionKey: string) {
   const session = await requireSession();
   if (session.user.roles.some(({ role }) => role.key === "superadmin")) return true;
 
@@ -20,7 +22,7 @@ export async function hasPermission(permissionKey: string) {
       select: { roleId: true },
     }),
   );
-}
+});
 
 export async function requirePermission(permissionKey: string) {
   if (!(await hasPermission(permissionKey))) forbidden();

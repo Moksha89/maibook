@@ -27,3 +27,13 @@ export async function sendWhatsAppReport(sessionKey: string, payload: { recipien
   if (!response.ok) throw new Error(body.error || `WhatsApp bridge returned ${response.status}.`);
   return body;
 }
+
+/** Live status of one session as the bridge itself sees it (the database copy can be stale after a restart). */
+export async function whatsAppSessionStatus(sessionKey: string): Promise<string> {
+  const { url } = config();
+  try {
+    const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(4000), cache: "no-store" });
+    const body = await response.json() as { sessions?: { key: string; status: string }[] };
+    return body.sessions?.find((entry) => sessionKey.startsWith(entry.key))?.status ?? "DISCONNECTED";
+  } catch { return "UNREACHABLE"; }
+}

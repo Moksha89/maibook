@@ -22,11 +22,11 @@ export function AgentForm({ companies, agentNames = [] }: { companies: { id: str
         <label className="text-xs font-bold text-[#0d1a2c]">Phone<Input name="phone" className="mt-1" inputMode="tel" /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Email<Input name="email" className="mt-1" type="email" /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Company<Select name="companyId" className="mt-1" required defaultValue={companies.length === 1 ? companies[0].id : ""}><option value="">Select company</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</Select></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">Opening balance<Input name="openingBalance" className="mt-1" type="number" defaultValue="0" step="0.00000001" required /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Opening balance<Input name="openingBalance" className="mt-1" type="number" defaultValue="0" step="0.01" required /></label>
       </div>
       {existing ? <p className="mt-2 text-xs text-[#8a4b08]">An agent with this name already exists. Submitting will add the existing agent to the selected company instead of creating a duplicate.</p> : null}
       {state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null}
-      {state.fieldErrors ? <p className="mt-2 text-xs text-[#b42318]">Check the agent details and try again.</p> : null}
+      {state.fieldErrors ? <ul className="mt-2 list-disc pl-4 text-xs text-[#b42318]">{Object.values(state.fieldErrors).map((messages, index) => <li key={index}>{messages[0]}</li>)}</ul> : null}
       <FormFooter><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}{pending ? "Saving" : "Create agent"}</Button></FormFooter>
     </form>
   );

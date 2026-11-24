@@ -21,7 +21,7 @@ export function EditCompanyForm({ company }: { company: EditableCompany }) {
         <label className="text-xs font-bold text-[#0d1a2c]">Name<Input name="name" className="mt-1" defaultValue={company.name} required /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Code<Input name="code" className="mt-1" defaultValue={company.code ?? ""} /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Currency<Input name="currency" className="mt-1" defaultValue={company.currency} maxLength={3} required /></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">Default rate<Input name="defaultRate" className="mt-1" type="number" min="0" step="0.00000001" defaultValue={company.defaultRate ?? ""} /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Default rate<Input name="defaultRate" className="mt-1" type="number" min="0" step="0.0001" defaultValue={company.defaultRate ?? ""} /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Contact phone<Input name="contactPhone" className="mt-1" defaultValue={company.contactPhone ?? ""} maxLength={30} /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Contact email<Input name="contactEmail" type="email" className="mt-1" defaultValue={company.contactEmail ?? ""} maxLength={254} /></label>
         <label className="text-xs font-bold text-[#0d1a2c] sm:col-span-2">Notes<Input name="notes" className="mt-1" defaultValue={company.notes ?? ""} maxLength={2000} /></label>

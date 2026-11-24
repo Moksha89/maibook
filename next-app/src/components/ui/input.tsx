@@ -57,10 +57,30 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   ref?: Ref<HTMLInputElement>;
 }
 
+
+const todayIst = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+
+/** Sensible HTML constraints inferred from the field name, so every form validates inline without per-form wiring. */
+function inferConstraints(name: string, type: string, given: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  if (type === "number") {
+    if (/percent/i.test(name)) Object.assign(out, { min: 0, max: 100, step: 0.01 });
+    else if (/amount|balance/i.test(name)) Object.assign(out, { step: 0.01, min: -1_000_000_000, max: 1_000_000_000 });
+    else if (/coins/i.test(name)) Object.assign(out, { step: 0.01, min: 0.01, max: 1_000_000_000 });
+    else if (/^rate$|rate$/i.test(name)) Object.assign(out, { step: "any", min: 0 });
+  } else if (type === "date" && /^(entryDate|settlementDate)$/.test(name)) Object.assign(out, { max: todayIst() });
+  else if (type === "text" && /^(name|displayName)$/.test(name)) Object.assign(out, { minLength: 2, maxLength: 120 });
+  else if (type === "text" && name === "username") Object.assign(out, { minLength: 3, maxLength: 80, pattern: "[A-Za-z0-9._\\-]+", title: "Letters, numbers, dots, dashes or underscores" });
+  else if (type === "email") Object.assign(out, { maxLength: 254 });
+  for (const key of Object.keys(out)) if (given[key] !== undefined) delete out[key];
+  return out;
+}
+
 function BaseInput({ className, icon, prefix, suffix, hint, error, strength, reveal = true, stepper, ref, type = "text", ...props }: InputProps) {
   const innerRef = useRef<HTMLInputElement | null>(null);
   const [shown, setShown] = useState(false);
   const [value, setValue] = useState("");
+  const [localError, setLocalError] = useState("");
   const name = props.name ?? "";
   const isPassword = type === "password";
   const isNumber = type === "number";
@@ -108,7 +128,8 @@ function BaseInput({ className, icon, prefix, suffix, hint, error, strength, rev
   const score = strengthOf(value);
   const strengthText = !value ? "Use 8+ characters with upper & lower case, a number and a symbol." : ["Too weak", "Weak password", "Fair password", "Good password", "Strong password"][score];
   const barColor = score <= 1 ? "bg-[#e5484d]" : score === 2 ? "bg-[#f5a524]" : "bg-[#2fb36a]";
-  const { onInput, ...rest } = props;
+  const { onInput, onBlur, onInvalid, ...restProps } = props;
+  const rest = { ...inferConstraints(name, type, restProps), ...restProps };
   const trailBtn = "grid w-8 shrink-0 place-items-center text-[#8a98a8] hover:text-[#152235] focus-visible:text-[#152235] focus-visible:outline-none";
 
   return (
@@ -121,7 +142,9 @@ function BaseInput({ className, icon, prefix, suffix, hint, error, strength, rev
           ref={setRefs}
           type={isPassword && reveal && shown ? "text" : type}
           className={clsx(bareInput, isNumber && "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none", isDate && "[&::-webkit-calendar-picker-indicator]:hidden", !leading && !isAmount && !prefix && "pl-3.5")}
-          onInput={(event) => { if (showStrength) setValue(event.currentTarget.value); onInput?.(event); }}
+          onInput={(event) => { if (showStrength) setValue(event.currentTarget.value); if (localError && event.currentTarget.checkValidity()) setLocalError(""); onInput?.(event); }}
+          onBlur={(event) => { setLocalError(event.currentTarget.value === "" && !event.currentTarget.required ? "" : event.currentTarget.validationMessage); onBlur?.(event); }}
+          onInvalid={(event) => { setLocalError(event.currentTarget.validationMessage); onInvalid?.(event); }}
           {...rest}
         />
         {isPercent ? <span className="flex shrink-0 items-center border-l border-[#e3e8ef] px-3 text-xs font-semibold text-[#647386]" aria-hidden="true">%</span> : null}
@@ -131,7 +154,7 @@ function BaseInput({ className, icon, prefix, suffix, hint, error, strength, rev
         {showStepper ? <span className="flex w-6 shrink-0 flex-col border-l border-[#e3e8ef] text-[#8a98a8]"><button type="button" tabIndex={-1} className="grid flex-1 place-items-center hover:bg-[#eef1f6] hover:text-[#152235]" aria-label={`Increase ${name || "value"}`} onClick={() => bump(1)}><ChevronUp className="size-3" strokeWidth={2} /></button><button type="button" tabIndex={-1} className="grid flex-1 place-items-center border-t border-[#e3e8ef] hover:bg-[#eef1f6] hover:text-[#152235]" aria-label={`Decrease ${name || "value"}`} onClick={() => bump(-1)}><ChevronDown className="size-3" strokeWidth={2} /></button></span> : null}
       </span>
       {showStrength ? <span className="mt-1 block" data-strength={score}><span className="flex gap-1" aria-hidden="true">{[1, 2, 3, 4].map((segment) => <span key={segment} className={clsx("h-1 flex-1 rounded-full transition-colors", value && segment <= score ? barColor : "bg-[#dfe5ee]")} />)}</span><span className="mt-0.5 block text-[11px] font-normal text-[#647386]" aria-live="polite">{strengthText}</span></span> : null}
-      {error ? <span role="alert" className="mt-1 flex items-center gap-1 text-[11px] font-normal text-[#b42318]"><Info className="size-3" />{error}</span> : hint ? <span className="mt-1 block text-[11px] font-normal text-[#647386]">{hint}</span> : null}
+      {error || localError ? <span role="alert" className="mt-1 flex items-center gap-1 text-[11px] font-normal text-[#b42318]"><Info className="size-3" />{error || localError}</span> : hint ? <span className="mt-1 block text-[11px] font-normal text-[#647386]">{hint}</span> : null}
     </span>
   );
 }

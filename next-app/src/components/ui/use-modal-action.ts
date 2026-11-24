@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useContext, useEffect, useRef } from "react";
+import { useActionState, useCallback, useContext, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { toast } from "@/components/ui/toast";
@@ -12,7 +12,18 @@ import type { ActionState } from "@/lib/actions/types";
  * current page's data in place and closes the surrounding modal (if any). Errors stay inline.
  */
 export function useModalAction(action: (state: ActionState, formData: FormData) => Promise<ActionState>, initialState: ActionState) {
-  const [state, formAction, pending] = useActionState(action, initialState);
+  const safeAction = useCallback(async (state: ActionState, formData: FormData): Promise<ActionState> => {
+    try { return await action(state, formData); }
+    catch (error) {
+      // Redirects/navigation signals must keep working; everything else becomes a friendly inline error.
+      const digest = (error as { digest?: string } | null)?.digest ?? "";
+      if (digest.startsWith("NEXT_REDIRECT")) throw error;
+      if (digest.startsWith("NEXT_HTTP_ERROR_FALLBACK;401")) return { status: "error", message: "Your session has expired. Please sign in again." };
+      if (digest.startsWith("NEXT_HTTP_ERROR_FALLBACK;403")) return { status: "error", message: "You do not have permission to do this." };
+      return { status: "error", message: "We could not save this. Check the details and try again." + (digest ? ` (ref ${digest.slice(0, 8)})` : "") };
+    }
+  }, [action]);
+  const [state, formAction, pending] = useActionState(safeAction, initialState);
   const close = useContext(ModalCloseContext);
   const router = useRouter();
   const handled = useRef<ActionState | null>(null);

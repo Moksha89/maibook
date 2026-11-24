@@ -24,7 +24,7 @@ export function SettlementFormBody({ companies, initialIdempotencyKey }: { compa
         <label className="text-xs font-bold text-[#0d1a2c]">Company<Select name="companyId" className="mt-1" value={companyId} onChange={(event) => setCompanyId(event.target.value)}>{companies.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</Select></label>
         <label className="text-xs font-bold text-[#0d1a2c]">ID<Select name="identifierId" className="mt-1" required><option value="">Select ID</option>{company?.identifiers.map((identifier) => <option key={identifier.id} value={identifier.id}>{identifier.value} · {identifier.agentName} · {identifier.percentageRate}%</option>)}</Select></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Upline<Select name="uplineId" className="mt-1"><option value="">No upline</option>{company?.uplines.map((upline) => <option key={upline.id} value={upline.id}>{upline.name} · {upline.percentageRate}%</option>)}</Select></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">Amount<Input name="amount" className="mt-1" type="number" step="0.00000001" required /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Amount<Input name="amount" className="mt-1" type="number" step="0.01" required /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Date<Input name="settlementDate" className="mt-1" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Remarks<Input name="remarks" className="mt-1" maxLength={500} /></label>
       </div>
