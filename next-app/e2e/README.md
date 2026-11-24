@@ -5,7 +5,7 @@ Never point them at maibook.co: they create, edit and delete records and each lo
 
 Setup: a Postgres database seeded with a superadmin (default 9182982174), `next build && next start -p 3200` with the same
 `DATABASE_URL`, and the env vars `BASE` (default `http://localhost:3200`) and `PW` (the seeded password).
-`e2e/localclean.sh` clears local sessions/devices so the 3-device limit is never hit; edit its connection string for your DB.
+`e2e/localclean.sh` clears local sessions/devices so the per-user device limit (default 6) is never hit; edit its connection string for your DB.
 Run from `next-app/`.
 
 | Script | Covers |
