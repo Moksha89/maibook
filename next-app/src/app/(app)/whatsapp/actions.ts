@@ -30,7 +30,7 @@ export async function logoutWhatsAppAction(): Promise<void> {
   revalidatePath("/whatsapp");
 }
 
-const deliverySchema = z.object({ reportId: z.string().uuid(), recipient: z.string().trim().min(8).max(30), mode: z.enum(["TEXT", "IMAGE", "BOTH"]) });
+const deliverySchema = z.object({ reportId: z.string().uuid(), recipient: z.string().trim().min(8).max(600), mode: z.enum(["TEXT", "IMAGE", "BOTH"]) });
 
 export async function queueWhatsAppDeliveryAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("whatsapp.send");
@@ -41,21 +41,54 @@ export async function queueWhatsAppDeliveryAction(_: ActionState, formData: Form
   const report = await db.generatedReport.findUnique({ where: { id: parsed.data.reportId } });
   if (!report?.companyId) return { status: "error", message: "The selected report is unavailable." };
   await requireCompanyAccess(report.companyId, "READ");
-  const recipient = normalizePhone(parsed.data.recipient);
+  // Several numbers may be pasted at once, separated by commas, semicolons, or new lines.
+  const recipients = [...new Set(parsed.data.recipient.split(/[\s,;]+/).map((value) => normalizePhone(value)).filter(Boolean))];
+  if (!recipients.length || recipients.length > 20) return { status: "error", message: "Enter between 1 and 20 WhatsApp numbers." };
+  if (recipients.some((number) => number.replace(/\D/g, "").length < 8 || number.replace(/\D/g, "").length > 15)) return { status: "error", message: "Each WhatsApp number needs 8 to 15 digits including the country code." };
   const connection = await defaultConnection();
   if (process.env.WHATSAPP_DELIVERY_ENABLED !== "true") {
-    await db.reportDelivery.create({ data: { reportId: report.id, mode: parsed.data.mode, recipient, status: "FAILED", lastError: "WhatsApp delivery is disabled in this environment." } });
+    await db.reportDelivery.createMany({ data: recipients.map((recipient) => ({ reportId: report.id, mode: parsed.data.mode, recipient, status: "FAILED" as const, lastError: "WhatsApp delivery is disabled in this environment." })) });
     revalidatePath("/whatsapp");
-    return { status: "error", message: "Delivery was recorded but not sent because WhatsApp is disabled in this environment." };
+    return { status: "error", message: "Deliveries were recorded but not sent because WhatsApp is disabled in this environment." };
   }
   if (connection.status !== "CONNECTED") return { status: "error", message: "Connect WhatsApp before sending a report." };
-  const delivery = await db.$transaction(async (tx) => {
-    const record = await tx.reportDelivery.create({ data: { reportId: report.id, mode: parsed.data.mode, recipient } });
-    await tx.whatsAppMessage.create({ data: { connectionId: connection.id, deliveryId: record.id, recipient, mode: parsed.data.mode } });
-    await tx.job.create({ data: { type: "DELIVER_WHATSAPP", idempotencyKey: `whatsapp:${record.id}`, payload: { deliveryId: record.id, reportId: report.id, connectionId: connection.id } } });
-    await tx.auditLog.create({ data: { actorId: session.userId, companyId: report.companyId!, action: "whatsapp.delivery.queue", entityType: "ReportDelivery", entityId: record.id, requestId: randomUUID(), newValues: { recipient, mode: parsed.data.mode } } });
-    return record;
+  const queued = await db.$transaction(async (tx) => {
+    const records = [];
+    for (const recipient of recipients) {
+      const record = await tx.reportDelivery.create({ data: { reportId: report.id, mode: parsed.data.mode, recipient } });
+      await tx.whatsAppMessage.create({ data: { connectionId: connection.id, deliveryId: record.id, recipient, mode: parsed.data.mode } });
+      await tx.job.create({ data: { type: "DELIVER_WHATSAPP", idempotencyKey: `whatsapp:${record.id}`, payload: { deliveryId: record.id, reportId: report.id, connectionId: connection.id } } });
+      await tx.auditLog.create({ data: { actorId: session.userId, companyId: report.companyId!, action: "whatsapp.delivery.queue", entityType: "ReportDelivery", entityId: record.id, requestId: randomUUID(), newValues: { recipient, mode: parsed.data.mode } } });
+      records.push(record);
+    }
+    return records;
   });
   revalidatePath("/whatsapp");
-  return { status: "success", message: `Delivery ${delivery.id.slice(0, 8)} queued.` };
+  return { status: "success", message: queued.length === 1 ? `Delivery ${queued[0].id.slice(0, 8)} queued.` : `${queued.length} deliveries queued.` };
+}
+
+/** Re-queues one failed delivery; deliveries already marked SENT are never resent. */
+export async function retryWhatsAppDeliveryAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("whatsapp.send");
+  await requirePermission("reports.deliver");
+  const deliveryId = String(formData.get("deliveryId") || "");
+  const session = await requireSession();
+  const delivery = await db.reportDelivery.findUnique({ where: { id: deliveryId }, include: { report: true } });
+  if (!delivery?.report.companyId) return { status: "error", message: "This delivery is unavailable." };
+  await requireCompanyAccess(delivery.report.companyId, "READ");
+  if (delivery.status !== "FAILED") return { status: "error", message: "Only failed deliveries can be retried." };
+  if (process.env.WHATSAPP_DELIVERY_ENABLED !== "true") return { status: "error", message: "WhatsApp delivery is disabled in this environment." };
+  const connection = await defaultConnection();
+  if (connection.status !== "CONNECTED") return { status: "error", message: "Connect WhatsApp before retrying." };
+  const attempt = delivery.attemptCount + 1;
+  await db.$transaction(async (tx) => {
+    await tx.reportDelivery.update({ where: { id: delivery.id }, data: { status: "QUEUED", lastError: null, nextAttemptAt: null } });
+    const existing = await tx.whatsAppMessage.findFirst({ where: { deliveryId: delivery.id } });
+    if (existing) await tx.whatsAppMessage.update({ where: { id: existing.id }, data: { status: "QUEUED", lastError: null } });
+    else await tx.whatsAppMessage.create({ data: { connectionId: connection.id, deliveryId: delivery.id, recipient: delivery.recipient, mode: delivery.mode } });
+    await tx.job.create({ data: { type: "DELIVER_WHATSAPP", idempotencyKey: `whatsapp:${delivery.id}:retry:${attempt}:${Date.now()}`, payload: { deliveryId: delivery.id, reportId: delivery.reportId, connectionId: connection.id } } });
+    await tx.auditLog.create({ data: { actorId: session.userId, companyId: delivery.report.companyId!, action: "whatsapp.delivery.retry", entityType: "ReportDelivery", entityId: delivery.id, requestId: randomUUID() } });
+  });
+  revalidatePath("/whatsapp");
+  return { status: "success", message: "Delivery re-queued." };
 }

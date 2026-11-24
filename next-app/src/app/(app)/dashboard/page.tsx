@@ -3,13 +3,15 @@ import { Building2, ChartNoAxesCombined, IdCard, Users } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { requirePermission } from "@/lib/auth/permissions";
+import { hasPermission, requirePermission } from "@/lib/auth/permissions";
+import { getBackupHealth } from "@/lib/services/backups";
 import { db } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   await requirePermission("dashboard.read");
+  const backupHealth = (await hasPermission("backups.read")) ? await getBackupHealth() : null;
   const [companyCount, agentCount, identifierCount, settlementSummary, recentAudit] = await Promise.all([
     db.company.count({ where: { deletedAt: null, status: "ACTIVE" } }),
     db.agent.count({ where: { deletedAt: null, status: "ACTIVE" } }),
@@ -27,6 +29,7 @@ export default async function DashboardPage() {
   return (
     <>
       <PageHeader title="Dashboard" description="Current operational totals and recent account activity." />
+      {backupHealth && (backupHealth.stale || backupHealth.failedSince) ? <a href="/database" className="mb-3 block rounded-lg border border-[#f0c36d] bg-[#fff4d7] px-3 py-2 text-xs font-semibold text-[#72500c]">{backupHealth.failedSince ? "The latest database backup failed." : "No database backup has completed in the last 26 hours."} Open Database to review.</a> : null}
       <section className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map(({ label, value, detail, icon: Icon }) => <article key={label} className="rounded-lg border bg-white p-3 shadow-[0_1px_2px_rgba(8,17,31,0.04)]"><div className="flex items-center justify-between"><p className="text-xs font-semibold text-[#647386]">{label}</p><Icon className="size-4 text-[#a97819]" /></div><p className="mt-1 font-mono text-xl font-semibold text-[#0d1a2c]">{value}</p>{detail ? <p className="mt-0.5 font-mono text-[11px] text-[#647386]">Value {detail}</p> : null}</article>)}
       </section>

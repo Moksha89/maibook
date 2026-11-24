@@ -72,3 +72,9 @@ Manual `pg_dump` creation, checksum verification, and download are already imple
 - [June Maibook implementation conversation](https://app.devin.ai/sessions/5f7f6a810ff54a82ba2be9d59c086645)
 - [iBook rebuild specification](IBOOK_PROJECT_SPECIFICATION.md)
 - [Rebuild and prior verification in PR #5](https://github.com/Moksha89/maibook/pull/5)
+
+
+## Status update 2026-11-24 (release ibook-next-20261124b)
+Implemented without external credentials: Maibook branding; daily 02:00 scheduled backups with 30-day retention and failed/stale alerts (also fixed manual backups, which previously required Docker Compose); backup upload with archive and checksum validation; company edit/deactivate/remove; agent edit/activate/deactivate/remove, company assignment management and add-agent autocomplete with duplicate prevention; ID edit/status/remove; user editing (role, company access, module overrides, expiry, OTP flag, device limit, password reset); upline and shareholder edit/status/remove with percentage validation; shareholder entry and upline entry views; ledger CSV (Excel) export per company or agent; Enter-to-next-field; WhatsApp multi-recipient sends, retry of failed deliveries, live QR refresh and a documented bridge contract (`docs/WHATSAPP_BRIDGE_CONTRACT.md`).
+
+Still open: live WhatsApp pairing and delivery (needs a bridge and a phone scan); SendGrid email and Twilio SMS delivery (need keys); email/SMS OTP; backup restore (needs OTP and an isolated target); standalone Business Partners screen and owner bulk-send (need the Owners-vs-Partners decision); URL/table state persistence; the owner decisions listed above.
