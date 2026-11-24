@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+
 import { Building2, LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { createCompanyAction } from "./actions";
 const initialState: ActionState = {};
 
 export function CompanyForm() {
-  const [state, action, pending] = useActionState(createCompanyAction, initialState);
+  const [state, action, pending] = useModalAction(createCompanyAction, initialState);
   return (
     <form action={action} className="rounded-lg border bg-white p-3">
       <div className="mb-3 flex items-center gap-2"><Building2 className="size-4 text-[#a97819]" /><h2 className="text-sm font-bold">Add company</h2></div>

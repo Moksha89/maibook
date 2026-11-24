@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+import { useState } from "react";
 import { ArrowRightLeft, LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ interface CompanyOption {
 }
 
 export function TransferForm({ companies, initialIdempotencyKey }: { companies: CompanyOption[]; initialIdempotencyKey: string }) {
-  const [state, action, pending] = useActionState(createTransferAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(createTransferAction, {} as ActionState);
   const [companyId, setCompanyId] = useState(companies[0]?.id ?? "");
   const company = companies.find((option) => option.id === companyId);
 

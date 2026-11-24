@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import { EnterNavigation } from "@/components/ui/enter-navigation";
+import { Toaster } from "@/components/ui/toast";
 import { NavigationProgress } from "@/components/ui/nav-progress";
 import "./globals.css";
 
@@ -27,7 +28,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       lang="en"
       className={`${instrumentSans.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full"><Suspense fallback={null}><NavigationProgress /></Suspense><EnterNavigation />{children}</body>
+      <body className="min-h-full"><Suspense fallback={null}><NavigationProgress /></Suspense><EnterNavigation />{children}<Toaster /></body>
     </html>
   );
 }

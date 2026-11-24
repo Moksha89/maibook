@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+
 import { LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { updateCompanyAction } from "./actions";
 export interface EditableCompany { id: string; name: string; code: string | null; currency: string; defaultRate: string | null; reportHeader: string | null; reportFooter: string | null; contactPhone: string | null; contactEmail: string | null; notes: string | null }
 
 export function EditCompanyForm({ company }: { company: EditableCompany }) {
-  const [state, action, pending] = useActionState(updateCompanyAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(updateCompanyAction, {} as ActionState);
   return (
     <form action={action} className="rounded-lg border bg-white p-3">
       <input type="hidden" name="companyId" value={company.id} />

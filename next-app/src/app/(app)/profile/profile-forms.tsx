@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+
 import { LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { changePasswordAction, updateProfileAction } from "./actions";
 function Feedback({ state }: { state: ActionState }) { return state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null; }
 
 export function ProfileForm({ profile }: { profile: { displayName: string; email: string; phone: string } }) {
-  const [state, action, pending] = useActionState(updateProfileAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(updateProfileAction, {} as ActionState);
   return (
     <form action={action} className="rounded-lg border bg-white p-3">
       <h2 className="mb-3 text-sm font-bold">Profile</h2>
@@ -28,7 +29,7 @@ export function ProfileForm({ profile }: { profile: { displayName: string; email
 }
 
 export function ChangePasswordForm() {
-  const [state, action, pending] = useActionState(changePasswordAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(changePasswordAction, {} as ActionState);
   return (
     <form action={action} className="rounded-lg border bg-white p-3">
       <h2 className="mb-3 text-sm font-bold">Change password</h2>

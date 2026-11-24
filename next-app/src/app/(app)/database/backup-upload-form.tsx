@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+
 import { LoaderCircle, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import type { ActionState } from "@/lib/actions/types";
 import { uploadBackupAction } from "./actions";
 
 export function BackupUploadForm() {
-  const [state, action, pending] = useActionState(uploadBackupAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(uploadBackupAction, {} as ActionState);
   return (
     <form action={action} className="mb-3 rounded-lg border bg-white p-3">
       <h2 className="mb-2 flex items-center gap-2 text-sm font-bold"><Upload className="size-4 text-[#a97819]" />Upload a backup archive</h2>

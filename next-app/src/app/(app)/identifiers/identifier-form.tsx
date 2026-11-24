@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+import { useState } from "react";
 import { IdCard, LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { SegmentedToggle } from "@/components/ui/toggle";
 interface CompanyOption { id: string; name: string; agents: { id: string; name: string }[] }
 
 export function IdentifierForm({ companies }: { companies: CompanyOption[] }) {
-  const [state, action, pending] = useActionState(createIdentifierAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(createIdentifierAction, {} as ActionState);
   const [companyId, setCompanyId] = useState(companies[0]?.id ?? "");
   const company = companies.find((option) => option.id === companyId);
   return (

@@ -1,5 +1,7 @@
 import { Info } from "lucide-react";
 
+import { NoCloseScope } from "@/components/ui/modal-context";
+
 import { FormModal } from "@/components/ui/form-modal";
 
 /** An "Add …" pill that always opens a modal: the real form when prerequisites exist, otherwise a guided setup step. */
@@ -11,7 +13,7 @@ export function SetupNotice({ title, children, form }: { title: string; children
   return (
     <div data-setup-step>
       <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#cfdcff] bg-[#eef3ff] p-3 text-xs text-[#26407f]"><Info className="mt-0.5 size-4 shrink-0" /><div><p className="font-bold">{title}</p><p className="mt-0.5">{children}</p></div></div>
-      {form}
+      <NoCloseScope>{form}</NoCloseScope>
     </div>
   );
 }

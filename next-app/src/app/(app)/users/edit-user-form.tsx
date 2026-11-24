@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+
 import { LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ export interface EditableUser {
 }
 
 export function EditUserForm({ user, roles, companies, modules }: { user: EditableUser; roles: { id: string; name: string }[]; companies: { id: string; name: string }[]; modules: string[] }) {
-  const [state, action, pending] = useActionState(updateUserAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(updateUserAction, {} as ActionState);
   return (
     <form action={action} className="rounded-lg border bg-white p-3">
       <input type="hidden" name="userId" value={user.id} />

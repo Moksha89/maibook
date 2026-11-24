@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+
 import { LoaderCircle } from "lucide-react";
 
 import { ActionButton } from "@/components/ui/action-button";
@@ -13,8 +14,8 @@ import { assignAgentAction, removeAgentAssignmentAction, updateAgentAction } fro
 export interface EditableAgent { id: string; name: string; phone: string | null; email: string | null; assignments: { companyId: string; companyName: string; balance: string }[] }
 
 export function EditAgentForm({ agent, assignableCompanies, canAssign }: { agent: EditableAgent; assignableCompanies: { id: string; name: string }[]; canAssign: boolean }) {
-  const [state, action, pending] = useActionState(updateAgentAction, {} as ActionState);
-  const [assignState, assignAction, assigning] = useActionState(assignAgentAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(updateAgentAction, {} as ActionState);
+  const [assignState, assignAction, assigning] = useModalAction(assignAgentAction, {} as ActionState);
   return (
     <div className="space-y-3">
       <form action={action} className="rounded-lg border bg-white p-3">

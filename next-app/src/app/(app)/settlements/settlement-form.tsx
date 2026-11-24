@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+import { useState } from "react";
 import { Landmark, LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { createSettlementAction } from "./actions";
 interface CompanyOption { id: string; name: string; identifiers: { id: string; value: string; type: string; agentName: string; percentageRate: string }[]; uplines: { id: string; name: string; percentageRate: string }[] }
 
 export function SettlementFormBody({ companies, initialIdempotencyKey }: { companies: CompanyOption[]; initialIdempotencyKey: string }) {
-  const [state, action, pending] = useActionState(createSettlementAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(createSettlementAction, {} as ActionState);
   const [companyId, setCompanyId] = useState(companies[0]?.id ?? "");
   const company = companies.find((option) => option.id === companyId);
   return (

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+import { useState } from "react";
 import { LoaderCircle, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import type { ActionState } from "@/lib/actions/types";
 import { createAgentAction } from "./actions";
 
 export function AgentForm({ companies, agentNames = [] }: { companies: { id: string; name: string }[]; agentNames?: string[] }) {
-  const [state, action, pending] = useActionState(createAgentAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(createAgentAction, {} as ActionState);
   const [typed, setTyped] = useState("");
   const existing = agentNames.some((name) => name.trim().toLowerCase() === typed.trim().toLowerCase()) && typed.trim().length > 1;
   return (

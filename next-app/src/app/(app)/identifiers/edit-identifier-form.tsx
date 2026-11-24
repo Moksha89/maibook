@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useModalAction } from "@/components/ui/use-modal-action";
+
 import { LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { updateIdentifierAction } from "./actions";
 import { SegmentedToggle } from "@/components/ui/toggle";
 
 export function EditIdentifierForm({ identifier }: { identifier: { id: string; value: string; type: "AGENT" | "SUB_AGENT"; percentageRate: string } }) {
-  const [state, action, pending] = useActionState(updateIdentifierAction, {} as ActionState);
+  const [state, action, pending] = useModalAction(updateIdentifierAction, {} as ActionState);
   return (
     <form action={action} className="rounded-lg border bg-white p-3">
       <input type="hidden" name="identifierId" value={identifier.id} />
