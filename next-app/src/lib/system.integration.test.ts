@@ -298,6 +298,18 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("HTTP APIs and per
     expect(lines._sum.coins?.toString()).toBe("1");
   });
 
+  it("returns the original manual distribution for a repeated key and rejects a changed payload", async () => {
+    await db.companyAgent.updateMany({ where: { agentId: agentIds[1] }, data: { openingBalance: 0, currentBalance: 0 } });
+    const key = randomUUID();
+    const post = (amount: string, date: string) => distributeManualAgentAmount({ agentId: agentIds[1], amount, entryDate: new Date(date), idempotencyKey: key, ...context });
+    expect((await post("3", "2026-03-02")).duplicate).toBe(false);
+    expect((await post("3", "2026-03-02")).duplicate).toBe(true);
+    await expect(post("4", "2026-03-02")).rejects.toThrow(/different details/);
+    await expect(post("3", "2026-03-03")).rejects.toThrow(/different details/);
+    const lines = await db.ledgerEntryLine.aggregate({ where: { entry: { idempotencyKey: { startsWith: key } } }, _sum: { coins: true } });
+    expect(lines._sum.coins?.toString()).toBe("3");
+  });
+
   it("downloads every report format and validates malformed identifiers", async () => {
     for (const format of ["PDF", "PNG", "CSV", "TEXT", "PRINT"] as const) {
       const report = await db.generatedReport.create({ data: { companyId: companyIds[0], type: "COMPANY_LEDGER", format, parameters: { companyId: companyIds[0], startDate: "2026-01-01", endDate: "2026-12-31" } } });

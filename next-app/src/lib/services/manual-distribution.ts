@@ -10,8 +10,15 @@ export async function distributeManualAgentAmount(input: { agentId: string; amou
     const companyAssignments = await tx.companyAgent.findMany({ where: { agentId: input.agentId, removedAt: null }, select: { companyId: true }, orderBy: { companyId: "asc" } });
     for (const { companyId } of companyAssignments) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}))`;
     await tx.$queryRaw`SELECT "company_id" FROM "company_agents" WHERE "agent_id" = ${input.agentId}::uuid AND "removed_at" IS NULL ORDER BY "company_id" FOR UPDATE`;
-    const existing = await tx.ledgerEntry.findFirst({ where: { idempotencyKey: { startsWith: `${input.idempotencyKey}:` } } });
-    if (existing) return { duplicate: true, allocations: [] };
+    const previous = await tx.ledgerEntry.findMany({ where: { idempotencyKey: { startsWith: `${input.idempotencyKey}:` } }, include: { lines: true } });
+    if (previous.length) {
+      // A retry of the same submission returns the original result; a different payload must not be silently ignored.
+      const lines = previous.flatMap((entry) => entry.lines);
+      const total = lines.reduce((sum, line) => sum.add(line.coins.toString()), decimal(0));
+      const sameDay = previous.every((entry) => entry.entryDate.toISOString().slice(0, 10) === input.entryDate.toISOString().slice(0, 10));
+      if (!lines.length || lines.some((line) => line.agentId !== input.agentId) || !total.eq(decimal(input.amount.toString())) || !sameDay) throw new Error("This submission was already posted with different details. Reload the form and submit again as a new distribution.");
+      return { duplicate: true, allocations: [] };
+    }
     const agent = await tx.agent.findFirstOrThrow({ where: { id: input.agentId, deletedAt: null } });
     const assignments = await tx.companyAgent.findMany({ where: { agentId: input.agentId, removedAt: null }, orderBy: { companyId: "asc" } });
     const allocations = allocateManualAgentAmount(input.amount, assignments.map((item) => ({ companyId: item.companyId, balance: item.currentBalance.toString() })));
