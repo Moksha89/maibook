@@ -35,7 +35,7 @@ export function assertPercentage(value: DecimalInput, field = "Percentage") {
 export function calculateCashValue(coins: DecimalInput, rate: DecimalInput) {
   const parsedRate = decimal(rate);
   if (parsedRate.lt(0)) throw new Error("Rate cannot be negative.");
-  return decimal(coins).mul(parsedRate);
+  return decimal(coins).mul(parsedRate).toDecimalPlaces(8);
 }
 
 export function calculateClosingBalance(
@@ -61,12 +61,12 @@ export function calculateSettlement(
   agentPercentage: DecimalInput,
   uplinePercentage: DecimalInput = 0,
 ): SettlementCalculation {
-  const absoluteAmount = decimal(amount).abs();
+  const absoluteAmount = decimal(amount).abs().toDecimalPlaces(8);
   const agentRate = assertPercentage(agentPercentage, "Agent percentage");
   const uplineRate = assertPercentage(uplinePercentage, "Upline percentage");
-  const agentShare = absoluteAmount.mul(agentRate).div(100);
+  const agentShare = absoluteAmount.mul(agentRate).div(100).toDecimalPlaces(8);
   const companyShare = absoluteAmount.sub(agentShare);
-  const uplineShare = absoluteAmount.mul(uplineRate).div(100);
+  const uplineShare = absoluteAmount.mul(uplineRate).div(100).toDecimalPlaces(8);
   const companyProfit = companyShare.sub(uplineShare);
 
   if (companyProfit.lt(0)) {
@@ -90,11 +90,15 @@ export function allocateShareholderProfit(
     throw new Error("Active shareholder percentages cannot exceed 100 percent.");
   }
 
-  return shareholders.map((shareholder) => ({
-    shareholderId: shareholder.shareholderId,
-    percentage: decimal(shareholder.percentage),
-    amount: profit.mul(shareholder.percentage).div(100),
-  }));
+  const totalAllocated = profit.mul(totalPercentage).div(100).toDecimalPlaces(8);
+  let allocated = decimal(0);
+  return shareholders.map((shareholder, index) => {
+    const amount = index === shareholders.length - 1
+      ? totalAllocated.sub(allocated)
+      : profit.mul(shareholder.percentage).div(100).toDecimalPlaces(8, Decimal.ROUND_DOWN);
+    allocated = allocated.add(amount);
+    return { shareholderId: shareholder.shareholderId, percentage: decimal(shareholder.percentage), amount };
+  });
 }
 
 export function recalculateRunningBalances(
@@ -111,13 +115,19 @@ export function recalculateRunningBalances(
 
 export function allocateManualAgentAmount(amount: DecimalInput, balances: { companyId: string; balance: DecimalInput }[]) {
   if (!balances.length) throw new Error("The agent has no active company assignments.");
-  const signedAmount = decimal(amount);
+  const signedAmount = decimal(amount).toDecimalPlaces(8);
   if (signedAmount.isZero()) throw new Error("Amount cannot be zero.");
   let remaining = signedAmount.abs();
   const allocations = new Map(balances.map(({ companyId }) => [companyId, new Decimal(0)]));
   const outstanding = balances.map((item) => ({ companyId: item.companyId, amount: decimal(item.balance).abs() })).filter((item) => item.amount.gt(0)).sort((left, right) => left.amount.comparedTo(right.amount));
   for (const item of outstanding) { if (remaining.isZero()) break; const paid = Decimal.min(remaining, item.amount); allocations.set(item.companyId, allocations.get(item.companyId)!.add(paid)); remaining = remaining.sub(paid); }
-  if (remaining.gt(0)) { const even = remaining.div(balances.length); balances.forEach(({ companyId }, index) => { const share = index === balances.length - 1 ? remaining.sub(even.mul(balances.length - 1)) : even; allocations.set(companyId, allocations.get(companyId)!.add(share)); }); }
+  if (remaining.gt(0)) {
+    const even = remaining.div(balances.length).toDecimalPlaces(8, Decimal.ROUND_DOWN);
+    balances.forEach(({ companyId }, index) => {
+      const share = index === balances.length - 1 ? remaining.sub(even.mul(balances.length - 1)) : even;
+      allocations.set(companyId, allocations.get(companyId)!.add(share));
+    });
+  }
   const sign = signedAmount.isNegative() ? -1 : 1;
   return balances.map(({ companyId }) => ({ companyId, amount: allocations.get(companyId)!.mul(sign) })).filter((item) => !item.amount.isZero());
 }

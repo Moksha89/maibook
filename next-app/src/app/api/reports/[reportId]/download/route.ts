@@ -1,6 +1,7 @@
 import PDFDocument from "pdfkit";
 import sharp from "sharp";
 import path from "node:path";
+import { z } from "zod";
 
 import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
@@ -43,10 +44,11 @@ async function png(table: Awaited<ReturnType<typeof loadReportTable>>) {
 export async function GET(_: Request, { params }: { params: Promise<{ reportId: string }> }) {
   await requirePermission("reports.export");
   const { reportId } = await params;
+  if (!z.string().uuid().safeParse(reportId).success) return new Response("Report not found", { status: 404 });
   const report = await db.generatedReport.findUnique({ where: { id: reportId }, include: { template: true } });
-  if (!report || !report.companyId) return new Response("Report not found", { status: 404 });
+  if (!report?.companyId || (report.expiresAt && report.expiresAt <= new Date())) return new Response("Report not found", { status: 404 });
   await requireCompanyAccess(report.companyId, "READ");
-  const parameters = report.parameters as unknown as ReportParameters;
+  const parameters = { ...report.parameters as unknown as ReportParameters, companyId: report.companyId };
   const table = await loadReportTable(report.type, parameters);
   if (report.template) table.subtitle = report.template.body.replaceAll("{{company}}", table.subtitle.split(" · ")[0] || "").replaceAll("{{startDate}}", new Date(parameters.startDate).toLocaleDateString()).replaceAll("{{endDate}}", new Date(parameters.endDate).toLocaleDateString());
   if (report.format === "CSV") { const body = `\uFEFF${[table.columns, ...table.rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n")}`; return new Response(body, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${fileName(table.title, "csv")}"` } }); }

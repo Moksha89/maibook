@@ -15,6 +15,10 @@ export async function generateReportAction(_: ActionState, formData: FormData): 
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message, fieldErrors: parsed.error.flatten().fieldErrors };
   await requireCompanyAccess(parsed.data.companyId, "READ");
   const session = await requireSession();
+  if (parsed.data.type === "AGENT_LEDGER") {
+    const assignment = await db.companyAgent.findFirst({ where: { companyId: parsed.data.companyId, agentId: parsed.data.agentId, removedAt: null } });
+    if (!assignment) return { status: "error", message: "Select an agent assigned to this company." };
+  }
   if (parsed.data.templateId) {
     const template = await db.reportTemplate.findFirst({ where: { id: parsed.data.templateId, type: parsed.data.type, isActive: true } });
     if (!template) return { status: "error", message: "The selected template does not match this report type." };

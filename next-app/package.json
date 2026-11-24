@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "worker": "tsx src/worker/index.ts",
+    "worker": "tsx --conditions=react-server --env-file-if-exists=.env src/worker/index.ts",
     "import:legacy": "tsx scripts/import-legacy.ts",
     "build": "next build",
     "start": "next start",

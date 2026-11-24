@@ -1,12 +1,15 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import { notFound } from "next/navigation";
+import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import type { ActionState } from "@/lib/actions/types";
 import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
+import { db } from "@/lib/db";
 import { postSettlement, reverseSettlement } from "@/lib/services/settlements";
 import { settlementSchema } from "@/lib/validation/settlement";
 
@@ -32,9 +35,11 @@ export async function createSettlementAction(_: ActionState, formData: FormData)
 export async function reverseSettlementAction(formData: FormData) {
   await requirePermission("settlements.reverse");
   const settlementId = String(formData.get("settlementId") || "");
-  const companyId = String(formData.get("companyId") || "");
   const reason = String(formData.get("reason") || "Reversed by an authorized user").slice(0, 500);
-  await requireCompanyAccess(companyId, "FULL");
+  if (!z.string().uuid().safeParse(settlementId).success) notFound();
+  const settlement = await db.settlement.findUnique({ where: { id: settlementId }, select: { companyId: true } });
+  if (!settlement) notFound();
+  await requireCompanyAccess(settlement.companyId, "FULL");
   const session = await requireSession();
   await reverseSettlement(settlementId, session.userId, randomUUID(), reason);
   revalidatePath("/settlements"); revalidatePath("/identifiers"); revalidatePath("/agents"); revalidatePath("/ledger");

@@ -2,7 +2,7 @@ import "server-only";
 
 import { Prisma } from "@prisma/client";
 
-import { db } from "@/lib/db";
+import { financialTransaction } from "@/lib/services/financial-transaction";
 import { allocateShareholderProfit, decimal } from "@/lib/domain/finance";
 
 export interface DistributeProfitInput {
@@ -15,7 +15,8 @@ export interface DistributeProfitInput {
 }
 
 export async function distributeCompanyProfit(input: DistributeProfitInput) {
-  return db.$transaction(async (tx) => {
+  if (input.periodStart > input.periodEnd) throw new Error("End date must follow start date.");
+  return financialTransaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.companyId}))`;
     const existing = await tx.shareholderEntry.findFirst({ where: { companyId: input.companyId, source: "SETTLEMENT_PROFIT", periodStart: input.periodStart, periodEnd: input.periodEnd, deletedAt: null } });
     if (existing) return { duplicate: true, companyProfit: existing.companyProfit, allocationCount: 0 };
@@ -58,5 +59,5 @@ export async function distributeCompanyProfit(input: DistributeProfitInput) {
     await tx.settlement.updateMany({ where: { id: { in: settlements.map((settlement) => settlement.id) } }, data: { profitDistributedAt: new Date() } });
     await tx.auditLog.create({ data: { actorId: input.actorId, companyId: input.companyId, action: "shareholder.profit.distribute", entityType: "Company", entityId: input.companyId, requestId: input.requestId, newValues: { period, totalSettlements: totalSettlements.toString(), agentShare: agentShare.toString(), uplineShare: uplineShare.toString(), companyProfit: companyProfit.toString(), allocationCount: allocations.length } } });
     return { duplicate: false, companyProfit: new Prisma.Decimal(companyProfit.toString()), allocationCount: allocations.length };
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  });
 }

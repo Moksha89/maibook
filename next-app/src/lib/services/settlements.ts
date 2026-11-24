@@ -2,9 +2,9 @@ import "server-only";
 
 import { Prisma } from "@prisma/client";
 
-import { db } from "@/lib/db";
+import { financialTransaction } from "@/lib/services/financial-transaction";
 import { calculateSettlement, decimal, splitCreditDebit } from "@/lib/domain/finance";
-import { recalculateAgentBalances } from "@/lib/services/ledger";
+import { recalculateAgentBalances, recalculateNonAgentBalances } from "@/lib/services/ledger";
 
 export interface PostSettlementInput {
   companyId: string;
@@ -23,12 +23,17 @@ function pd(value: { toString(): string }) {
 }
 
 export async function postSettlement(input: PostSettlementInput) {
-  const amount = decimal(input.amount);
+  const amount = decimal(input.amount).toDecimalPlaces(8);
   if (amount.isZero()) throw new Error("Settlement amount cannot be zero.");
 
-  return db.$transaction(
+  return financialTransaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.companyId}))`;
+      const existing = await tx.settlement.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+      if (existing) {
+        if (existing.companyId !== input.companyId) throw new Error("This idempotency key is already in use.");
+        return existing;
+      }
       await tx.$queryRaw`SELECT "id" FROM "agent_ids" WHERE "id" = ${input.identifierId}::uuid FOR UPDATE`;
       const identifier = await tx.agentIdentifier.findFirst({ where: { id: input.identifierId, companyId: input.companyId, deletedAt: null, status: "ACTIVE" } });
       if (!identifier) throw new Error("The selected ID is unavailable.");
@@ -102,14 +107,15 @@ export async function postSettlement(input: PostSettlementInput) {
         tx.companyAgent.update({ where: { companyId_agentId: { companyId: input.companyId, agentId: identifier.agentId } }, data: { currentBalance: pd(agentClosing) } }),
         tx.auditLog.create({ data: { actorId: input.actorId, companyId: input.companyId, action: "settlement.create", entityType: "Settlement", entityId: settlement.id, requestId: input.requestId, newValues: { identifierId: identifier.id, uplineId: upline?.id, amount: amount.toString(), agentPercentage: identifier.percentageRate.toString(), agentShare: calculation.agentShare.toString(), uplineShare: calculation.uplineShare.toString(), companyShare: calculation.companyShare.toString(), companyProfit: calculation.companyProfit.toString() } } }),
       ]);
+      await recalculateAgentBalances(tx, input.companyId, identifier.agentId);
+      await recalculateNonAgentBalances(tx, input.companyId);
       return settlement;
     },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 }
 
 export async function reverseSettlement(settlementId: string, actorId: string, requestId: string, reason: string) {
-  return db.$transaction(async (tx) => {
+  return financialTransaction(async (tx) => {
     const settlement = await tx.settlement.findUniqueOrThrow({ where: { id: settlementId }, include: { uplineEntries: { where: { deletedAt: null } } } });
     if (settlement.status === "REVERSED") return { duplicate: true };
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${settlement.companyId}))`;
@@ -131,7 +137,8 @@ export async function reverseSettlement(settlementId: string, actorId: string, r
       tx.settlement.update({ where: { id: settlement.id }, data: { status: "REVERSED", reversedAt: new Date() } }),
     ]);
     await recalculateAgentBalances(tx, settlement.companyId, settlement.agentId);
+    await recalculateNonAgentBalances(tx, settlement.companyId);
     await tx.auditLog.create({ data: { actorId, companyId: settlement.companyId, action: "settlement.reverse", entityType: "Settlement", entityId: settlement.id, requestId, oldValues: { status: settlement.status }, newValues: { status: "REVERSED", reason, reversedShareholderDistributions: distributions.length } } });
     return { duplicate: false };
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  });
 }

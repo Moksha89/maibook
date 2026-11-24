@@ -2,6 +2,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { connection } from "next/server";
+import { unauthorized } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { hashToken, randomToken } from "./crypto";
@@ -76,7 +77,13 @@ export async function getSession() {
   if (!token) return null;
 
   return db.session.findFirst({
-    where: { tokenHash: hashToken(token), revokedAt: null, expiresAt: { gt: new Date() } },
+    where: {
+      tokenHash: hashToken(token),
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+      user: { status: "ACTIVE", deletedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      OR: [{ deviceId: null }, { device: { is: { revokedAt: null } } }],
+    },
     include: {
       user: {
         include: {
@@ -90,7 +97,7 @@ export async function getSession() {
 
 export async function requireSession() {
   const session = await getSession();
-  if (!session) throw new Error("UNAUTHENTICATED");
+  if (!session) unauthorized();
   return session;
 }
 

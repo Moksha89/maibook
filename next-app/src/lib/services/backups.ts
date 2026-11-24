@@ -5,6 +5,7 @@ import { createReadStream, createWriteStream } from "node:fs";
 import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { pipeline } from "node:stream/promises";
 
 import { db } from "@/lib/db";
 
@@ -28,10 +29,14 @@ export async function createDatabaseBackup(actorId: string) {
       const child = spawn("docker", ["compose", "exec", "-T", "postgres", "pg_dump", "-U", process.env.POSTGRES_USER || "ibook", "-d", process.env.POSTGRES_DB || "ibook", "-Fc"], { cwd: process.cwd(), windowsHide: true });
       const output = createWriteStream(filePath, { flags: "wx" });
       let errorText = "";
-      child.stdout.pipe(output);
+      const written = pipeline(child.stdout, output);
       child.stderr.on("data", (chunk) => { errorText += String(chunk).slice(0, 2000); });
       child.on("error", reject);
-      child.on("close", (code) => code === 0 ? resolve() : reject(new Error(errorText || `pg_dump exited with ${code}.`)));
+      written.catch(reject);
+      child.on("close", (code) => {
+        if (code !== 0) { reject(new Error(errorText || `pg_dump exited with ${code}.`)); return; }
+        written.then(() => resolve(), reject);
+      });
     });
     const [fileStat, digest] = await Promise.all([stat(filePath), checksum(filePath)]);
     await db.$transaction([
