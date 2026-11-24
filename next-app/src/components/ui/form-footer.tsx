@@ -19,11 +19,12 @@ export function FormFooter({ children, className }: { children: React.ReactNode;
     const sync = () => {
       const button = submit();
       if (!button) return;
-      const valid = form.checkValidity();
-      if (valid) {
+      // Read validity without firing invalid events before the user interacts.
+      const bad = form.querySelector<HTMLInputElement>(":invalid");
+      if (!bad) {
         if (button.dataset.vdis === "1") { delete button.dataset.vdis; button.disabled = false; button.removeAttribute("title"); }
       } else if (!button.disabled && !button.querySelector(".animate-spin")) {
-        const bad = form.querySelector<HTMLInputElement>(":invalid"); button.dataset.vdis = "1"; button.disabled = true; button.title = bad ? `${bad.name || "A field"}: ${bad.validationMessage || "needs attention"}` : "Fill in the required fields correctly to continue";
+        button.dataset.vdis = "1"; button.disabled = true; button.title = `${bad.name || "A field"}: ${bad.validationMessage || "needs attention"}`;
       }
     };
     const later = () => { sync(); setTimeout(sync, 60); };
