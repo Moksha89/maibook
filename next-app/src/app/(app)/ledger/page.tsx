@@ -9,6 +9,7 @@ import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { deleteLedgerEntryAction, restoreLedgerEntryAction } from "./actions";
 import { TransferForm } from "./transfer-form";
+import { QuickEntryBar } from "./quick-entry-bar";
 import { Select } from "@/components/ui/input";
 import { Button, LinkButton } from "@/components/ui/button";
 
@@ -34,6 +35,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
     canUpdate ? db.ledgerEntry.findMany({ where: { deletedAt: { not: null }, entryType: { in: ["TRANSACTION", "MANUAL_AGENT"] }, ...entryWhere }, include: { company: { select: { name: true } }, lines: { where: { accountType: "AGENT" }, include: { agent: { select: { name: true } } }, orderBy: { sequence: "asc" } } }, orderBy: { deletedAt: "desc" }, take: 25 }) : Promise.resolve([]),
   ]);
   const formCompanies = companies.map((company) => ({ id: company.id, name: company.name, defaultRate: company.defaultRate?.toString() ?? null, agents: company.agents.map(({ agent }) => agent) }));
+  const quickCompanies = companies.map((company) => ({ id: company.id, name: company.name, defaultRate: company.defaultRate?.toString() ?? null, agents: company.agents.map(({ agent, currentBalance }) => ({ id: agent.id, name: agent.name, balance: currentBalance.toString() })) }));
+  const remarkOptions = [...new Set(entries.map((entry) => entry.remarks?.trim()).filter((value): value is string => Boolean(value)))].slice(0, 40);
 
   return <>
     <PageHeader title="Ledger" description="Agent transfers with atomic updates, historical editing, recovery, and cascading balance recalculation. Coins and Coin balance are units; Credit and Debit are money (coins × rate)." actions={canCreate && formCompanies.length ? <FormModal trigger="Add entry" title="Create ledger entry" size="xl"><TransferForm companies={formCompanies} initialIdempotencyKey={randomUUID()} /></FormModal> : null} />
@@ -43,5 +46,6 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       {!entries.length ? <p className="px-3 py-8 text-center text-xs text-[#647386]">No ledger entries match this view.</p> : null}
     </section>
     {canUpdate ? <section className="mt-3 overflow-hidden rounded-lg border bg-white"><div className="border-b px-3 py-2"><h2 className="text-sm font-bold">Deleted entries</h2></div><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-[#f4f6f8]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">Agents</th><th className="px-3 py-2">Deleted</th><th className="px-3 py-2 text-right">Action</th></tr></thead><tbody>{deletedEntries.map((entry) => <tr key={entry.id} className="border-t"><td className="px-3 py-2">{entry.entryDate.toLocaleDateString()}</td><td className="px-3 py-2">{entry.company.name}</td><td className="px-3 py-2">{entry.lines.map((line) => line.agent?.name || line.accountType).join(" / ")}</td><td className="px-3 py-2">{entry.deletedAt?.toLocaleString()}</td><td className="px-3 py-2 text-right"><form action={restoreLedgerEntryAction}><input type="hidden" name="entryId" value={entry.id} /><input type="hidden" name="companyId" value={entry.companyId} /><Button type="submit" size="xs" iconOnly variant="secondary">Restore and recalculate</Button></form></td></tr>)}</tbody></table></div>{!deletedEntries.length ? <p className="px-3 py-6 text-center text-xs text-[#647386]">No deleted entries.</p> : null}</section> : null}
+    {canCreate && quickCompanies.length ? <QuickEntryBar key={selectedCompanyId ?? "all"} companies={selectedCompanyId ? quickCompanies.filter((company) => company.id === selectedCompanyId) : quickCompanies} remarkOptions={remarkOptions} initialIdempotencyKey={randomUUID()} /> : null}
   </>;
 }
