@@ -7,8 +7,9 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: false,
-  // Lets open browser tabs notice a new release (and reload) instead of posting to server actions that no longer exist.
-  ...(process.env.DEPLOYMENT_ID ? { deploymentId: process.env.DEPLOYMENT_ID } : {}),
+  // Deliberately no `deploymentId`: Next 16.4 then fetches every shared script/font twice (once with ?dpl=, once without),
+  // wasting ~5 requests and ~65 KB per cold load. Stale tabs are still handled: a changed build id forces a hard navigation,
+  // and form submits to a removed Server Action reload the page (see use-modal-action.ts).
   experimental: {
     authInterrupts: true,
     serverActions: { bodySizeLimit: "512mb" },
