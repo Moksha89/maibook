@@ -8,6 +8,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { requirePermission } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { LinkButton } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
 export const metadata: Metadata = { title: "Agent" };
 
@@ -37,7 +39,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
   const th = "px-3 py-2";
   return (
     <>
-      <PageHeader title={agent.name} description={[agent.phone, agent.email].filter(Boolean).join(" · ") || "Agent profile"} actions={<><StatusBadge tone={agent.status === "ACTIVE" ? "success" : "neutral"}>{agent.status}</StatusBadge><Link href="/agents" className="inline-flex h-8 items-center rounded-md border bg-white px-3 text-xs font-semibold text-[#10233f]">All agents</Link></>} />
+      <PageHeader title={agent.name} description={[agent.phone, agent.email].filter(Boolean).join(" · ") || "Agent profile"} actions={<><StatusBadge tone={agent.status === "ACTIVE" ? "success" : "neutral"}>{agent.status}</StatusBadge><LinkButton href="/agents" variant="secondary" icon={ArrowLeft}>All agents</LinkButton></>} />
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {([["Companies", String(agent.companies.length)], ["IDs", String(agent.identifiers.length)], ["Total coin balance", money(total)], ["Settlements posted", `${settlementSum._count} · agent share ${money(Number(settlementSum._sum.agentShare ?? 0))}`]] as const).map(([label, value]) => <div key={label} className="rounded-lg border bg-white px-3 py-2"><div className="text-[10px] font-bold uppercase tracking-wide text-[#647386]">{label}</div><div className="mt-0.5 font-mono text-sm font-bold text-[#0d1a2c]">{value}</div></div>)}
       </div>

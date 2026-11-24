@@ -14,6 +14,13 @@ export interface LoginContext {
   userAgent: string;
 }
 
+/** Indian mobiles can be typed with or without +91; match both stored forms. */
+function phoneVariants(normalized: string) {
+  if (/^[6-9]\d{9}$/.test(normalized)) return [normalized, `+91${normalized}`];
+  const match = /^\+91([6-9]\d{9})$/.exec(normalized);
+  return match ? [normalized, match[1]] : [normalized];
+}
+
 export async function authenticate(input: LoginInput, context: LoginContext) {
   const normalizedIdentifier = normalizeLoginIdentifier(input.identifier);
   const keyHash = throttleKey(normalizedIdentifier, context.ipAddress);
@@ -25,7 +32,7 @@ export async function authenticate(input: LoginInput, context: LoginContext) {
       OR: [
         { normalizedUsername: normalizedIdentifier },
         { normalizedEmail: normalizedIdentifier },
-        { normalizedPhone: normalizedIdentifier },
+        { normalizedPhone: { in: phoneVariants(normalizedIdentifier) } },
       ],
     },
   });

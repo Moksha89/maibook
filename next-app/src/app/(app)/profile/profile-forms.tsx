@@ -5,6 +5,7 @@ import { LoaderCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormFooter } from "@/components/ui/form-footer";
 import type { ActionState } from "@/lib/actions/types";
 import { changePasswordAction, updateProfileAction } from "./actions";
 
@@ -16,12 +17,12 @@ export function ProfileForm({ profile }: { profile: { displayName: string; email
     <form action={action} className="rounded-lg border bg-white p-3">
       <h2 className="mb-3 text-sm font-bold">Profile</h2>
       <div className="grid gap-2 sm:grid-cols-3">
-        <label className="text-xs font-semibold text-[#3b4d63]">Display name<Input name="displayName" className="mt-1" defaultValue={profile.displayName} required /></label>
-        <label className="text-xs font-semibold text-[#3b4d63]">Email<Input name="email" type="email" className="mt-1" defaultValue={profile.email} /></label>
-        <label className="text-xs font-semibold text-[#3b4d63]">Phone<Input name="phone" className="mt-1" defaultValue={profile.phone} /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Display name<Input name="displayName" className="mt-1" defaultValue={profile.displayName} required /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Email<Input name="email" type="email" className="mt-1" defaultValue={profile.email} /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Phone<Input name="phone" className="mt-1" defaultValue={profile.phone} /></label>
       </div>
       <Feedback state={state} />
-      <div className="mt-3 flex justify-end"><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}Save profile</Button></div>
+      <FormFooter><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}Save profile</Button></FormFooter>
     </form>
   );
 }
@@ -32,13 +33,13 @@ export function ChangePasswordForm() {
     <form action={action} className="rounded-lg border bg-white p-3">
       <h2 className="mb-3 text-sm font-bold">Change password</h2>
       <div className="grid gap-2 sm:grid-cols-3">
-        <label className="text-xs font-semibold text-[#3b4d63]">Current password<Input name="currentPassword" type="password" autoComplete="current-password" className="mt-1" required /></label>
-        <label className="text-xs font-semibold text-[#3b4d63]">New password<Input name="newPassword" type="password" autoComplete="new-password" className="mt-1" required /></label>
-        <label className="text-xs font-semibold text-[#3b4d63]">Confirm new password<Input name="confirmPassword" type="password" autoComplete="new-password" className="mt-1" required /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Current password<Input name="currentPassword" type="password" autoComplete="current-password" className="mt-1" required /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">New password<Input name="newPassword" type="password" autoComplete="new-password" className="mt-1" required /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Confirm new password<Input name="confirmPassword" type="password" autoComplete="new-password" className="mt-1" required /></label>
       </div>
       <p className="mt-2 text-[11px] text-[#647386]">At least 12 characters with upper and lower case letters, a number and a symbol.</p>
       <Feedback state={state} />
-      <div className="mt-3 flex justify-end"><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}Change password</Button></div>
+      <FormFooter><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}Change password</Button></FormFooter>
     </form>
   );
 }

@@ -1,0 +1,14 @@
+{
+  "name": "maibook-whatsapp-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Private WhatsApp bridge for Maibook (implements docs/WHATSAPP_BRIDGE_CONTRACT.md) built on Baileys.",
+  "main": "server.mjs",
+  "scripts": { "start": "node server.mjs" },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "^9.6.0"
+  }
+}

@@ -13,6 +13,7 @@ import { normalizeEmail, normalizeName, normalizePhone } from "@/lib/domain/norm
 import { assignAgentSchema, createAgentSchema, updateAgentSchema } from "@/lib/validation/agent";
 
 function refresh(companyId?: string) {
+  revalidatePath("/", "layout");
   revalidatePath("/agents");
   revalidatePath("/identifiers");
   revalidatePath("/companies");

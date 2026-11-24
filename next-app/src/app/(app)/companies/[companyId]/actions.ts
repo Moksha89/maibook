@@ -23,6 +23,7 @@ export async function createUplineAction(_: ActionState, formData: FormData): Pr
   await requireCompanyAccess(parsed.data.companyId, "FULL");
   try {
     await db.upline.create({ data: { ...parsed.data, normalizedName: normalizeName(parsed.data.name) } });
+    revalidatePath("/", "layout");
     revalidatePath(`/companies/${parsed.data.companyId}`);
     return { status: "success", message: `${parsed.data.name} was added.` };
   } catch (error) {
@@ -39,7 +40,7 @@ export async function createUplineGroupAction(_: ActionState, formData: FormData
   await requireCompanyAccess(parsed.data.companyId, "FULL");
   const validCount = await db.upline.count({ where: { id: { in: parsed.data.uplineIds }, companyId: parsed.data.companyId, deletedAt: null } });
   if (validCount !== parsed.data.uplineIds.length) return { status: "error", message: "One or more uplines do not belong to this company." };
-  try { await db.uplineGroup.create({ data: { companyId: parsed.data.companyId, name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), members: { create: parsed.data.uplineIds.map((uplineId, index) => ({ uplineId, percentageRate: parsed.data.percentages[index] })) } } }); revalidatePath(`/companies/${parsed.data.companyId}`); return { status: "success", message: "Upline group created." }; } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "An upline group with this name already exists." }; throw error; }
+  try { await db.uplineGroup.create({ data: { companyId: parsed.data.companyId, name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), members: { create: parsed.data.uplineIds.map((uplineId, index) => ({ uplineId, percentageRate: parsed.data.percentages[index] })) } } }); revalidatePath(`/companies/${parsed.data.companyId}`); revalidatePath("/upline-groups"); return { status: "success", message: "Upline group created." }; } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "An upline group with this name already exists." }; throw error; }
 }
 
 export async function createManualUplineEntryAction(_: ActionState, formData: FormData): Promise<ActionState> {

@@ -37,8 +37,7 @@ export async function createCompanyAction(_: ActionState, formData: FormData): P
         auditLogs: { create: { actorId: session.userId, action: "company.create", entityType: "Company", requestId: randomUUID(), newValues: { name: parsed.data.name, code: parsed.data.code } } },
       },
     });
-    revalidatePath("/companies");
-    revalidatePath("/dashboard");
+    revalidatePath("/", "layout");
     return { status: "success", message: `${company.name} was created.` };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "A company with this name or code already exists." };

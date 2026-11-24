@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ModalCloseContext } from "@/components/ui/modal-context";
 
 export function FormModal({ trigger, title, children, size = "lg", compact = false }: { trigger: string; title: string; children: React.ReactNode; size?: "md" | "lg" | "xl"; compact?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -32,17 +33,17 @@ export function FormModal({ trigger, title, children, size = "lg", compact = fal
     window.addEventListener("keydown", handleKeyDown);
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", handleKeyDown); opener?.focus(); };
   }, [open]);
-  const width = size === "xl" ? "max-w-4xl" : size === "md" ? "max-w-lg" : "max-w-2xl";
+  const width = size === "xl" ? "max-w-5xl" : size === "md" ? "max-w-xl" : "max-w-3xl";
   return <>
-    {compact ? <button ref={openerRef} type="button" onClick={() => setOpen(true)} className="h-7 rounded border bg-white px-2 text-xs font-semibold text-[#203650] hover:bg-[#f4f6f8]">{trigger}</button> : <Button ref={openerRef} type="button" onClick={() => setOpen(true)}><Plus className="size-4" />{trigger}</Button>}
+    {compact ? <Button ref={openerRef} type="button" size="xs" iconOnly variant="secondary" onClick={() => setOpen(true)}>{trigger}</Button> : <Button ref={openerRef} type="button" onClick={() => setOpen(true)}>{trigger}</Button>}
     {open ? <div className="fixed inset-0 z-[70] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <button type="button" className="absolute inset-0 bg-[#08111f]/65" aria-label={`Close ${title}`} onClick={() => setOpen(false)} />
-      <section ref={dialogRef} tabIndex={-1} className={`relative max-h-[92dvh] w-full ${width} overflow-y-auto rounded-t-xl border bg-[#f4f6f8] shadow-2xl sm:rounded-xl`}>
-        <header className="sticky top-0 z-10 flex h-11 items-center justify-between border-b bg-white px-3">
-          <h2 id={titleId} className="text-sm font-bold text-[#0d1a2c]">{title}</h2>
-          <button type="button" onClick={() => setOpen(false)} className="grid size-8 place-items-center rounded-md text-[#53657a] hover:bg-[#eef1f4]" aria-label={`Close ${title}`}><X className="size-4" /></button>
+      <section ref={dialogRef} tabIndex={-1} className={`relative max-h-[92dvh] w-full ${width} overflow-y-auto rounded-t-[24px] border border-white/60 bg-white shadow-[0_24px_70px_rgba(8,17,31,0.4)] sm:rounded-[24px]`}>
+        <header className="sticky top-0 z-10 flex h-12 items-center justify-between bg-white/95 px-4 backdrop-blur sm:px-5">
+          <h2 id={titleId} className="text-base font-bold text-[#0d1a2c]">{title}</h2>
+          <Button type="button" iconOnly variant="secondary" icon={X} onClick={() => setOpen(false)} aria-label={`Close ${title}`} title="Close" />
         </header>
-        <div className="p-2 sm:p-3 [&>form]:border-0 [&>form]:shadow-none">{children}</div>
+        <ModalCloseContext.Provider value={() => setOpen(false)}><div className="px-4 pb-4 pt-1 sm:px-5 sm:pb-5 [&>form]:border-0 [&>form]:p-0! [&>form]:shadow-none">{children}</div></ModalCloseContext.Provider>
       </section>
     </div> : null}
   </>;

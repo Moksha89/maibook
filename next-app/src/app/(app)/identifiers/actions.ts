@@ -23,7 +23,7 @@ export async function createIdentifierAction(_: ActionState, formData: FormData)
   try {
     const identifier = await db.agentIdentifier.create({ data: { ...parsed.data, normalizedValue: normalizeName(parsed.data.value) } });
     await db.auditLog.create({ data: { actorId: session.userId, companyId: parsed.data.companyId, action: "identifier.create", entityType: "AgentIdentifier", entityId: identifier.id, requestId: randomUUID(), newValues: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate } } });
-    revalidatePath("/identifiers");
+    revalidatePath("/", "layout");
     return { status: "success", message: `${parsed.data.value} was created.` };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "This ID already exists in the selected company." };
