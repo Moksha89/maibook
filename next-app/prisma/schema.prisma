@@ -328,6 +328,7 @@ model Company {
   normalizedName     String             @unique @map("normalized_name")
   slug               String             @unique
   code               String?            @unique
+  notes              String?
   status             CompanyStatus      @default(ACTIVE)
   currency           String             @default("INR") @db.Char(3)
   defaultRate        Decimal?           @map("default_rate") @db.Decimal(20, 8)

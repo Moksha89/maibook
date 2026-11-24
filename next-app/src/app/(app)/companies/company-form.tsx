@@ -15,11 +15,10 @@ export function CompanyForm() {
   return (
     <form action={action} className="rounded-lg border bg-white p-3">
       <div className="mb-3 flex items-center gap-2"><Building2 className="size-4 text-[#a97819]" /><h2 className="text-sm font-bold">Add company</h2></div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-2">
         <label className="text-xs font-semibold text-[#3b4d63]">Name<Input name="name" className="mt-1" required /></label>
         <label className="text-xs font-semibold text-[#3b4d63]">Code<Input name="code" className="mt-1" /></label>
-        <label className="text-xs font-semibold text-[#3b4d63]">Currency<Input name="currency" className="mt-1" defaultValue="INR" maxLength={3} required /></label>
-        <label className="text-xs font-semibold text-[#3b4d63]">Default rate<Input name="defaultRate" className="mt-1" type="number" min="0" step="0.00000001" /></label>
+        <label className="text-xs font-semibold text-[#3b4d63] sm:col-span-2">Notes<textarea name="notes" className="mt-1 min-h-20 w-full resize-y rounded-md border bg-white px-2.5 py-2 font-normal outline-none transition focus:border-[#a97819] focus:ring-2 focus:ring-[#f2d693]" maxLength={2000} /></label>
       </div>
       {state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null}
       {state.fieldErrors ? <p className="mt-2 text-xs text-[#b42318]">Check the highlighted company details and try again.</p> : null}
