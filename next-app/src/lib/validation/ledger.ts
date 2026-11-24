@@ -20,3 +20,10 @@ export const editAgentTransferSchema = z.object({
   entryDate: pastOrToday("Entry date"),
   remarks: z.string().trim().max(500).optional(),
 });
+
+export const editManualAgentSchema = z.object({
+  entryId: z.string().uuid(),
+  amount: money("Amount", { nonZero: true }),
+  entryDate: pastOrToday("Entry date"),
+  remarks: z.string().trim().max(500).optional(),
+});

@@ -3,7 +3,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 
 import { financialTransaction } from "@/lib/services/financial-transaction";
-import { allocateShareholderProfit, decimal } from "@/lib/domain/finance";
+import { allocateShareholderProfit, summarizeSettlementProfit } from "@/lib/domain/finance";
 
 export interface DistributeProfitInput {
   companyId: string;
@@ -24,17 +24,15 @@ export async function distributeCompanyProfit(input: DistributeProfitInput) {
     const [settlements, shareholders] = await Promise.all([
       tx.settlement.findMany({
         where: { companyId: input.companyId, status: "POSTED", settlementDate: { gte: input.periodStart, lte: input.periodEnd } },
-        select: { id: true, absoluteAmount: true, agentShare: true, uplineShare: true, profitDistributedAt: true },
+        select: { id: true, amount: true, absoluteAmount: true, agentShare: true, uplineShare: true, profitDistributedAt: true },
       }),
       tx.shareholder.findMany({ where: { companyId: input.companyId, status: "ACTIVE", deletedAt: null }, orderBy: { name: "asc" } }),
     ]);
     if (!shareholders.length) throw new Error("Add at least one active shareholder before distributing profit.");
     if (!settlements.length) throw new Error("No posted settlements exist in this period.");
     if (settlements.some((settlement) => settlement.profitDistributedAt)) throw new Error("This period includes settlements whose profit was already distributed.");
-    const totalSettlements = settlements.reduce((sum, settlement) => sum.add(settlement.absoluteAmount.toString()), decimal(0));
-    const agentShare = settlements.reduce((sum, settlement) => sum.add(settlement.agentShare.toString()), decimal(0));
-    const uplineShare = settlements.reduce((sum, settlement) => sum.add(settlement.uplineShare.toString()), decimal(0));
-    const companyProfit = totalSettlements.sub(agentShare).sub(uplineShare);
+    // Signed: a losing (negative) settlement reduces profit and produces negative shareholder allocations.
+    const { totalSettlements, agentShare, uplineShare, companyProfit } = summarizeSettlementProfit(settlements);
     const allocations = allocateShareholderProfit(companyProfit, shareholders.map((shareholder) => ({ shareholderId: shareholder.id, percentage: shareholder.percentage.toString() })));
     const period = `${input.periodStart.toISOString().slice(0, 10)} to ${input.periodEnd.toISOString().slice(0, 10)}`;
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { ReportType } from "@prisma/client";
 import { db } from "@/lib/db";
+import { signedSettlementShare } from "@/lib/domain/finance";
 
 export interface ReportParameters { companyId: string; agentId?: string; startDate: string; endDate: string }
 export interface ReportTable { title: string; subtitle: string; columns: string[]; rows: string[][] }
@@ -17,7 +18,7 @@ export async function loadReportTable(type: ReportType, parameters: ReportParame
   const subtitle = `${company.name} · ${fmtDate(startDate)} to ${fmtDate(endDate)}`;
   if (type === "SETTLEMENT") {
     const records = await db.settlement.findMany({ where: { companyId: parameters.companyId, settlementDate: { gte: startDate, lte: endDate } }, include: { identifier: { select: { value: true } }, agent: { select: { name: true } } }, orderBy: [{ settlementDate: "asc" }, { createdAt: "asc" }] });
-    return { title: "Settlement Report", subtitle, columns: ["Date", "ID", "Agent", "Amount", "Agent %", "Agent Share", "Upline Share", "Company Share", "Status"], rows: records.map((record) => [fmtDate(record.settlementDate), record.identifier.value, record.agent.name, record.amount.toFixed(2), record.agentPercentage.toFixed(2), record.agentShare.toFixed(2), record.uplineShare.toFixed(2), record.companyShare.toFixed(2), record.status]) };
+    return { title: "Settlement Report", subtitle, columns: ["Date", "ID", "Agent", "Amount", "Agent %", "Agent Share", "Upline Share", "Company Share", "Status"], rows: records.map((record) => [fmtDate(record.settlementDate), record.identifier.value, record.agent.name, record.amount.toFixed(2), record.agentPercentage.toFixed(2), signedSettlementShare(record.amount, record.agentShare).toFixed(2), signedSettlementShare(record.amount, record.uplineShare).toFixed(2), signedSettlementShare(record.amount, record.companyShare).toFixed(2), record.status]) };
   }
   if (type === "UPLINE") {
     const records = await db.uplineEntry.findMany({ where: { companyId: parameters.companyId, deletedAt: null, entryDate: { gte: startDate, lte: endDate } }, include: { upline: { select: { name: true } } }, orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }] });

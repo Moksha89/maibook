@@ -10,12 +10,12 @@ import type { ActionState } from "@/lib/actions/types";
 import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { postAgentTransfer, restoreLedgerEntry, softDeleteLedgerEntry, updateAgentTransfer } from "@/lib/services/ledger";
-import { agentTransferSchema, editAgentTransferSchema } from "@/lib/validation/ledger";
+import { postAgentTransfer, restoreLedgerEntry, softDeleteLedgerEntry, updateAgentTransfer, updateManualAgentEntry } from "@/lib/services/ledger";
+import { agentTransferSchema, editAgentTransferSchema, editManualAgentSchema } from "@/lib/validation/ledger";
 
 async function requireEntryAccess(entryId: string) {
   if (!z.string().uuid().safeParse(entryId).success) notFound();
-  const entry = await db.ledgerEntry.findUnique({ where: { id: entryId, entryType: "TRANSACTION" }, select: { companyId: true } });
+  const entry = await db.ledgerEntry.findUnique({ where: { id: entryId, entryType: { in: ["TRANSACTION", "MANUAL_AGENT"] } }, select: { companyId: true } });
   if (!entry) notFound();
   await requireCompanyAccess(entry.companyId, "FULL");
 }
@@ -69,4 +69,17 @@ export async function updateLedgerEntryAction(_: ActionState, formData: FormData
     revalidatePath(`/ledger/${parsed.data.entryId}/edit`);
     return { status: "success", message: "Transfer updated and all later balances recalculated." };
   } catch (error) { return { status: "error", message: error instanceof Error ? error.message : "The transfer could not be updated." }; }
+}
+
+export async function updateManualAgentEntryAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("ledger.update");
+  const parsed = editManualAgentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { status: "error", fieldErrors: parsed.error.flatten().fieldErrors, message: parsed.error.issues[0]?.message };
+  await requireEntryAccess(parsed.data.entryId);
+  const session = await requireSession();
+  try {
+    await updateManualAgentEntry(parsed.data.entryId, { amount: parsed.data.amount, entryDate: parsed.data.entryDate, remarks: parsed.data.remarks, actorId: session.userId, requestId: randomUUID() });
+    revalidatePath("/ledger"); revalidatePath("/agents"); revalidatePath(`/ledger/${parsed.data.entryId}/edit`);
+    return { status: "success", message: "Manual allocation updated and later balances recalculated." };
+  } catch (error) { return { status: "error", message: error instanceof Error ? error.message : "The allocation could not be updated." }; }
 }

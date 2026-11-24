@@ -34,9 +34,14 @@ export async function postAgentTransfer(input: PostAgentTransferInput) {
   return financialTransaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.companyId}))`;
-      const existing = await tx.ledgerEntry.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
+      const existing = await tx.ledgerEntry.findUnique({ where: { idempotencyKey: input.idempotencyKey }, include: { lines: true } });
       if (existing) {
         if (existing.companyId !== input.companyId) throw new Error("This idempotency key is already in use.");
+        // Same submission retried: return the original. Different details under the same key are rejected, not ignored.
+        const sender = existing.lines.find((line) => line.coins.isNegative());
+        const receiver = existing.lines.find((line) => line.coins.isPositive());
+        const unchanged = sender?.agentId === input.senderAgentId && receiver?.agentId === input.receiverAgentId && receiver.coins.eq(coins.toString());
+        if (!unchanged) throw new Error("This submission was already posted with different details. Reload the form and submit again as a new entry.");
         return existing;
       }
       const lockIds = [input.senderAgentId, input.receiverAgentId].sort();
@@ -101,7 +106,7 @@ export async function recalculateAgentBalances(tx: TransactionClient, companyId:
 export async function softDeleteLedgerEntry(entryId: string, actorId: string, requestId: string) {
   return financialTransaction(async (tx) => {
     const entry = await tx.ledgerEntry.findUniqueOrThrow({ where: { id: entryId }, include: { lines: { where: { agentId: { not: null } }, select: { agentId: true } } } });
-    if (entry.entryType !== "TRANSACTION") throw new Error("Use the source workflow to reverse this entry. Settlements must be reversed from Settlements.");
+    if (entry.entryType !== "TRANSACTION" && entry.entryType !== "MANUAL_AGENT") throw new Error("Use the source workflow to reverse this entry. Settlements must be reversed from Settlements.");
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${entry.companyId}))`;
     if (entry.deletedAt) return entry;
     await tx.ledgerEntry.update({ where: { id: entryId }, data: { deletedAt: new Date() } });
@@ -114,7 +119,7 @@ export async function softDeleteLedgerEntry(entryId: string, actorId: string, re
 export async function restoreLedgerEntry(entryId: string, actorId: string, requestId: string) {
   return financialTransaction(async (tx) => {
     const entry = await tx.ledgerEntry.findUniqueOrThrow({ where: { id: entryId }, include: { lines: { where: { agentId: { not: null } }, select: { agentId: true } } } });
-    if (entry.entryType !== "TRANSACTION") throw new Error("Use the source workflow to restore this entry.");
+    if (entry.entryType !== "TRANSACTION" && entry.entryType !== "MANUAL_AGENT") throw new Error("Use the source workflow to restore this entry.");
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${entry.companyId}))`;
     if (!entry.deletedAt) return entry;
     await tx.ledgerEntry.update({ where: { id: entryId }, data: { deletedAt: null } });
@@ -173,4 +178,24 @@ export async function recalculateNonAgentBalances(tx: TransactionClient, company
     const balance = balances.get(upline.id) ?? decimal(0);
     if (!upline.currentBalance.eq(balance.toString())) await tx.upline.update({ where: { id: upline.id }, data: { currentBalance: prismaDecimal(balance) } });
   }
+}
+
+/** Edits one manual agent allocation (a signed amount posted by Manual distribution). */
+export async function updateManualAgentEntry(entryId: string, input: { amount: string | number; entryDate: Date; remarks?: string; actorId: string; requestId: string }) {
+  const amount = decimal(input.amount).toDecimalPlaces(8);
+  if (amount.isZero()) throw new Error("Amount cannot be zero.");
+  return financialTransaction(async (tx) => {
+    const entry = await tx.ledgerEntry.findUniqueOrThrow({ where: { id: entryId }, include: { lines: { where: { accountType: "AGENT" }, orderBy: { sequence: "asc" } } } });
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${entry.companyId}))`;
+    if (entry.deletedAt) throw new Error("Restore the entry before editing it.");
+    if (entry.entryType !== "MANUAL_AGENT" || entry.lines.length !== 1 || !entry.lines[0].agentId) throw new Error("Only manual agent allocations can be edited here.");
+    const line = entry.lines[0];
+    await tx.$queryRaw`SELECT "agent_id" FROM "company_agents" WHERE "company_id" = ${entry.companyId}::uuid AND "agent_id" = ${line.agentId!}::uuid FOR UPDATE`;
+    const split = splitCreditDebit(amount);
+    await tx.ledgerEntry.update({ where: { id: entryId }, data: { entryDate: input.entryDate, remarks: input.remarks || null } });
+    await tx.ledgerEntryLine.update({ where: { id: line.id }, data: { coins: prismaDecimal(amount), cashValue: prismaDecimal(amount), rate: 1, credit: prismaDecimal(split.credit), debit: prismaDecimal(split.debit) } });
+    await recalculateAgentBalances(tx, entry.companyId, line.agentId!);
+    await tx.auditLog.create({ data: { actorId: input.actorId, companyId: entry.companyId, action: "ledger.manual_agent.update", entityType: "LedgerEntry", entityId: entryId, requestId: input.requestId, oldValues: { amount: line.coins.toString(), entryDate: entry.entryDate.toISOString(), remarks: entry.remarks }, newValues: { amount: amount.toString(), entryDate: input.entryDate.toISOString(), remarks: input.remarks || null } } });
+    return entry;
+  });
 }

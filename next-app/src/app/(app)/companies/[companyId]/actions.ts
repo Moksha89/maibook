@@ -22,7 +22,8 @@ export async function createUplineAction(_: ActionState, formData: FormData): Pr
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message, fieldErrors: parsed.error.flatten().fieldErrors };
   await requireCompanyAccess(parsed.data.companyId, "FULL");
   try {
-    await db.upline.create({ data: { ...parsed.data, normalizedName: normalizeName(parsed.data.name) } });
+    const created = await db.upline.create({ data: { ...parsed.data, normalizedName: normalizeName(parsed.data.name) } });
+    await auditCompany(parsed.data.companyId, "upline.create", "Upline", created.id, { newValues: { name: parsed.data.name, percentageRate: parsed.data.percentageRate } });
     revalidatePath("/", "layout");
     revalidatePath(`/companies/${parsed.data.companyId}`);
     return { status: "success", message: `${parsed.data.name} was added.` };
@@ -32,15 +33,71 @@ export async function createUplineAction(_: ActionState, formData: FormData): Pr
   }
 }
 
+function readGroupForm(formData: FormData) {
+  const selectedUplineIds = formData.getAll("uplineIds").map(String);
+  const rawPercentages = selectedUplineIds.map((id) => String(formData.get(`percentage-${id}`) ?? "").trim());
+  if (!String(formData.get("name") ?? "").trim()) return { error: "Enter a group name." } as const;
+  if (!selectedUplineIds.length) return { error: "Tick at least one upline to include in this group." } as const;
+  const missing = rawPercentages.findIndex((value) => value === "");
+  if (missing >= 0) return { error: "Enter a percentage for every ticked upline." } as const;
+  return { selectedUplineIds, rawPercentages } as const;
+}
+
+function groupErrorMessage(parsed: { error: { issues: { message: string }[] } }) {
+  const message = parsed.error.issues[0]?.message ?? "Check the group details.";
+  return /expected array|>=\s*1 items|Too small/i.test(message) ? "Tick at least one upline and enter its percentage." : message;
+}
+
 export async function createUplineGroupAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("uplines.create");
-  const selectedUplineIds = formData.getAll("uplineIds").map(String);
-  const parsed = uplineGroupSchema.safeParse({ companyId: formData.get("companyId"), name: formData.get("name"), uplineIds: selectedUplineIds, percentages: selectedUplineIds.map((id) => formData.get(`percentage-${id}`)) });
-  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
+  const read = readGroupForm(formData);
+  if ("error" in read) return { status: "error", message: read.error };
+  const parsed = uplineGroupSchema.safeParse({ companyId: formData.get("companyId"), name: formData.get("name"), uplineIds: read.selectedUplineIds, percentages: read.rawPercentages });
+  if (!parsed.success) return { status: "error", message: groupErrorMessage(parsed) };
   await requireCompanyAccess(parsed.data.companyId, "FULL");
   const validCount = await db.upline.count({ where: { id: { in: parsed.data.uplineIds }, companyId: parsed.data.companyId, deletedAt: null } });
   if (validCount !== parsed.data.uplineIds.length) return { status: "error", message: "One or more uplines do not belong to this company." };
-  try { await db.uplineGroup.create({ data: { companyId: parsed.data.companyId, name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), members: { create: parsed.data.uplineIds.map((uplineId, index) => ({ uplineId, percentageRate: parsed.data.percentages[index] })) } } }); revalidatePath(`/companies/${parsed.data.companyId}`); revalidatePath("/upline-groups"); return { status: "success", message: "Upline group created." }; } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "An upline group with this name already exists." }; throw error; }
+  try {
+    const group = await db.uplineGroup.create({ data: { companyId: parsed.data.companyId, name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), members: { create: parsed.data.uplineIds.map((uplineId, index) => ({ uplineId, percentageRate: parsed.data.percentages[index] })) } } });
+    await auditCompany(parsed.data.companyId, "upline_group.create", "UplineGroup", group.id, { newValues: { name: parsed.data.name, members: parsed.data.uplineIds.map((uplineId, index) => ({ uplineId, percentage: parsed.data.percentages[index] })) } });
+    revalidatePath(`/companies/${parsed.data.companyId}`); revalidatePath("/upline-groups");
+    return { status: "success", message: "Upline group created." };
+  } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "An upline group with this name already exists." }; throw error; }
+}
+
+export async function updateUplineGroupAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("uplines.update");
+  const groupId = String(formData.get("groupId") || "");
+  const group = await db.uplineGroup.findUnique({ where: { id: groupId }, include: { members: true } });
+  if (!group) return { status: "error", message: "This upline group no longer exists." };
+  await requireCompanyAccess(group.companyId, "FULL");
+  const read = readGroupForm(formData);
+  if ("error" in read) return { status: "error", message: read.error };
+  const parsed = uplineGroupSchema.safeParse({ companyId: group.companyId, name: formData.get("name"), uplineIds: read.selectedUplineIds, percentages: read.rawPercentages });
+  if (!parsed.success) return { status: "error", message: groupErrorMessage(parsed) };
+  const validCount = await db.upline.count({ where: { id: { in: parsed.data.uplineIds }, companyId: group.companyId, deletedAt: null } });
+  if (validCount !== parsed.data.uplineIds.length) return { status: "error", message: "One or more uplines do not belong to this company." };
+  try {
+    await db.$transaction([
+      db.uplineGroupMember.deleteMany({ where: { groupId } }),
+      db.uplineGroup.update({ where: { id: groupId }, data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), members: { create: parsed.data.uplineIds.map((uplineId, index) => ({ uplineId, percentageRate: parsed.data.percentages[index] })) } } }),
+    ]);
+  } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "An upline group with this name already exists." }; throw error; }
+  await auditCompany(group.companyId, "upline_group.update", "UplineGroup", group.id, { oldValues: { name: group.name, members: group.members.map((m) => ({ uplineId: m.uplineId, percentage: m.percentageRate.toString() })) }, newValues: { name: parsed.data.name, members: parsed.data.uplineIds.map((uplineId, index) => ({ uplineId, percentage: parsed.data.percentages[index] })) } });
+  revalidatePath(`/companies/${group.companyId}`); revalidatePath("/upline-groups");
+  return { status: "success", message: "Upline group updated." };
+}
+
+export async function deleteUplineGroupAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("uplines.delete");
+  const groupId = String(formData.get("groupId") || "");
+  const group = await db.uplineGroup.findUnique({ where: { id: groupId }, include: { members: true } });
+  if (!group) return { status: "error", message: "This upline group no longer exists." };
+  await requireCompanyAccess(group.companyId, "FULL");
+  await db.uplineGroup.delete({ where: { id: groupId } });
+  await auditCompany(group.companyId, "upline_group.delete", "UplineGroup", group.id, { oldValues: { name: group.name, members: group.members.map((m) => ({ uplineId: m.uplineId, percentage: m.percentageRate.toString() })) } });
+  revalidatePath(`/companies/${group.companyId}`); revalidatePath("/upline-groups");
+  return { status: "success", message: `${group.name} was deleted.` };
 }
 
 export async function createManualUplineEntryAction(_: ActionState, formData: FormData): Promise<ActionState> {

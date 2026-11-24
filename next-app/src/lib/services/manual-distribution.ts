@@ -24,7 +24,8 @@ export async function distributeManualAgentAmount(input: { agentId: string; amou
       await tx.companyAgent.update({ where: { companyId_agentId: { companyId: allocation.companyId, agentId: agent.id } }, data: { currentBalance: new Prisma.Decimal(closing.toString()) } });
       await recalculateAgentBalances(tx, allocation.companyId, agent.id);
     }
-    await tx.auditLog.create({ data: { actorId: input.actorId, action: "agent.manual_distribution.create", entityType: "Agent", entityId: agent.id, requestId: input.requestId, newValues: { amount: String(input.amount), allocations: allocations.map((item) => ({ companyId: item.companyId, amount: item.amount.toString() })), excludedFromShareholderProfit: true } } });
+    // One audit row per company so the Audit page shows the right company instead of "Global".
+    for (const allocation of allocations) await tx.auditLog.create({ data: { actorId: input.actorId, companyId: allocation.companyId, action: "agent.manual_distribution.create", entityType: "Agent", entityId: agent.id, requestId: `${input.requestId}:${allocation.companyId}`, newValues: { totalAmount: String(input.amount), allocatedAmount: allocation.amount.toString(), excludedFromShareholderProfit: true } } });
     return { duplicate: false, allocations };
   });
 }

@@ -36,3 +36,8 @@ button, input, select, textarea { font: inherit; }
   body { background: white; color: black; font-size: 11px; }
   [data-print-hidden] { display: none !important; }
 }
+
+/* No increment/decrement spinner buttons on number inputs. */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

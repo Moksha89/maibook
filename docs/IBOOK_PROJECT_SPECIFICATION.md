@@ -256,6 +256,12 @@ company_share = absolute(settlement_amount) - agent_share
 - Shareholder reporting always calculates agent share from the settlement and stored percentage. It never infers agent share from the ledger entry amount.
 - Percentage snapshots prevent later rate changes from rewriting historical profit.
 
+> **Decision of 24 Nov 2026 (owner, supersedes the absolute-value rules in 7.8 and 7.11 for new settlements).**
+> - Profit follows the settlement sign. A settlement of −1000 produces negative shares: agent −X%, company −(100−X)% before uplines, and the shareholders' profit is negative in proportion. The shares are stored as magnitudes. The sign comes from `settlement.amount` and is applied when profit is aggregated (`summarizeSettlementProfit` in `lib/domain/finance.ts`).
+> - Sub Agent type at X%: the agent posts (100 − X)% of the settlement. Example: a Sub Agent ID at 80% posts +20 to the agent on a 100 settlement. The applied percentage is stored in the settlement's `agentPercentage` snapshot. An Agent-type ID at X% still posts X% (20% posts +20).
+> - Existing settlements are not recalculated. The Sub Agent rule applies only to settlements created after this release. Old negative settlements are displayed with their sign.
+> - Unit tests cover positive and negative settlements for both types (`lib/domain/finance.test.ts`).
+
 ### 7.9 Uplines and Groups
 
 - Create and manage uplines or sites.
@@ -293,6 +299,8 @@ shareholder_profit = company_profit × shareholder_percentage ÷ 100
 ```
 
 Manual agent entries and manual upline entries are excluded from this calculation.
+
+> Per the 24 Nov 2026 decision in 7.8, `total_settlements`, `agent_share`, `upline_share` and `company_profit` are summed with the settlement sign, so a negative settlement reduces company and shareholder profit.
 
 ### 7.12 Owners and Business Partners
 
@@ -612,7 +620,7 @@ flowchart LR
 
 1. Final public brand name and logo. Historical names include Maibook, mibook.dev, MyBook.you, and iBook.you.
 2. Whether Owners and Business Partners remain separate modules permanently.
-3. Exact Agent-type and Sub Agent-type posting direction for every settlement sign case.
+3. ~~Exact Agent-type and Sub Agent-type posting direction for every settlement sign case.~~ Decided 24 Nov 2026, see 7.8.
 4. Whether Database Management should remain available in the production UI.
 5. The preferred deployment platform and object storage provider.
 

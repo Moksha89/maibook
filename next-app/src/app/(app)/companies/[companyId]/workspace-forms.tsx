@@ -8,7 +8,7 @@ import { FormModal } from "@/components/ui/form-modal";
 import { Input, Select } from "@/components/ui/input";
 import { FormFooter } from "@/components/ui/form-footer";
 import type { ActionState } from "@/lib/actions/types";
-import { createManualUplineEntryAction, createShareholderAction, createUplineAction, createUplineGroupAction, distributeProfitAction, updateShareholderAction, updateUplineAction } from "./actions";
+import { createManualUplineEntryAction, createShareholderAction, createUplineAction, createUplineGroupAction, distributeProfitAction, updateShareholderAction, updateUplineAction, updateUplineGroupAction } from "./actions";
 import { DateRangePicker, istToday } from "@/components/ui/date-range-picker";
 
 function Feedback({ state }: { state: ActionState }) { return state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null; }
@@ -22,9 +22,10 @@ export function UplineForm(props: Parameters<typeof UplineFormBody>[0]) {
   return <FormModal trigger="Add upline" title="Add upline"><UplineFormBody {...props} /></FormModal>;
 }
 
-export function UplineGroupFormBody({ companyId, uplines }: { companyId: string; uplines: { id: string; name: string }[] }) {
-  const [state, action, pending] = useModalAction(createUplineGroupAction, {} as ActionState);
-  return <form action={action} className="rounded-lg border bg-white p-3"><input type="hidden" name="companyId" value={companyId} /><Input name="name" placeholder="Group name" required /><div className="mt-2 grid max-h-64 gap-1 overflow-y-auto sm:grid-cols-2">{uplines.map((upline) => <label key={upline.id} className="grid grid-cols-[auto_1fr_90px] items-center gap-2 rounded border px-2 py-1 text-xs"><input type="checkbox" name="uplineIds" value={upline.id} /><span>{upline.name}</span><Input name={`percentage-${upline.id}`} type="number" min="0.0001" max="100" step="0.0001" placeholder="%" /></label>)}</div><p className="mt-1 text-[11px] text-[#647386]">The selected member total cannot exceed 100 percent.</p><Feedback state={state} /><FormFooter><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}Create</Button></FormFooter></form>;
+export function UplineGroupFormBody({ companyId, uplines, group }: { companyId: string; uplines: { id: string; name: string }[]; group?: { id: string; name: string; members: { uplineId: string; percentage: string }[] } }) {
+  const [state, action, pending] = useModalAction(group ? updateUplineGroupAction : createUplineGroupAction, {} as ActionState);
+  const memberOf = (id: string) => group?.members.find((member) => member.uplineId === id);
+  return <form action={action} className="rounded-lg border bg-white p-3"><input type="hidden" name="companyId" value={companyId} />{group ? <input type="hidden" name="groupId" value={group.id} /> : null}<Input name="name" placeholder="Group name" defaultValue={group?.name} required /><div className="mt-2 grid max-h-64 gap-1 overflow-y-auto sm:grid-cols-2">{uplines.map((upline) => <label key={upline.id} className="grid grid-cols-[auto_1fr_90px] items-center gap-2 rounded border px-2 py-1 text-xs"><input type="checkbox" name="uplineIds" value={upline.id} defaultChecked={Boolean(memberOf(upline.id))} /><span>{upline.name}</span><Input name={`percentage-${upline.id}`} type="number" min="0.0001" max="100" step="0.0001" placeholder="%" defaultValue={memberOf(upline.id)?.percentage} /></label>)}</div><p className="mt-1 text-[11px] text-[#647386]">Tick the uplines in this group and enter each one&apos;s percentage. The ticked percentages must add up to exactly 100.</p><Feedback state={state} /><FormFooter><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}{group ? "Save changes" : "Create"}</Button></FormFooter></form>;
 }
 
 export function UplineGroupForm({ companyId, uplines }: { companyId: string; uplines: { id: string; name: string }[] }) {

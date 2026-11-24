@@ -25,7 +25,7 @@ export function IdentifierForm({ companies }: { companies: CompanyOption[] }) {
         <label className="text-xs font-bold text-[#0d1a2c]">Agent<Select name="agentId" className="mt-1" required><option value="">Select</option>{company?.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</Select></label>
         <label className="text-xs font-bold text-[#0d1a2c]">ID value<Input name="value" className="mt-1" required /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Type<SegmentedToggle name="type" label="ID type" size="md" className="mt-1 w-full" options={[{ value: "AGENT", label: "Agent" }, { value: "SUB_AGENT", label: "Sub Agent" }]} /></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">Agent percentage<Input name="percentageRate" className="mt-1" type="number" min="0" max="100" step="0.0001" required /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Agent percentage<Input name="percentageRate" className="mt-1" type="number" min="0" max="100" step="0.0001" required /><span className="mt-1 block text-[11px] font-normal text-[#647386]">Agent ID: this percentage is posted to the agent. SubAgent ID: the sub agent keeps this percentage and the agent is posted the remaining percentage (80 keeps 80, posts 20).</span></label>
       </div>
       {state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null}
       <FormFooter><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}{pending ? "Saving" : "Create ID"}</Button></FormFooter>

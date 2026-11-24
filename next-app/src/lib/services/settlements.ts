@@ -3,7 +3,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 
 import { financialTransaction } from "@/lib/services/financial-transaction";
-import { calculateSettlement, decimal, splitCreditDebit } from "@/lib/domain/finance";
+import { calculateSettlement, decimal, effectiveAgentPercentage, splitCreditDebit } from "@/lib/domain/finance";
 import { recalculateAgentBalances, recalculateNonAgentBalances } from "@/lib/services/ledger";
 
 export interface PostSettlementInput {
@@ -32,6 +32,9 @@ export async function postSettlement(input: PostSettlementInput) {
       const existing = await tx.settlement.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
       if (existing) {
         if (existing.companyId !== input.companyId) throw new Error("This idempotency key is already in use.");
+        // A retry of the same submission returns the original result; a different payload must not be silently ignored.
+        const sameDay = existing.settlementDate.toISOString().slice(0, 10) === input.settlementDate.toISOString().slice(0, 10);
+        if (existing.identifierId !== input.identifierId || !existing.amount.eq(amount.toString()) || !sameDay) throw new Error("This submission was already posted with different details. Reload the form and submit again as a new settlement.");
         return existing;
       }
       await tx.$queryRaw`SELECT "id" FROM "agent_ids" WHERE "id" = ${input.identifierId}::uuid FOR UPDATE`;
@@ -44,7 +47,9 @@ export async function postSettlement(input: PostSettlementInput) {
       const upline = input.uplineId ? await tx.upline.findFirst({ where: { id: input.uplineId, companyId: input.companyId, status: "ACTIVE", deletedAt: null } }) : null;
       if (input.uplineId && !upline) throw new Error("The selected upline is unavailable.");
       if (upline) await tx.$queryRaw`SELECT "id" FROM "uplines" WHERE "id" = ${upline.id}::uuid FOR UPDATE`;
-      const calculation = calculateSettlement(amount, identifier.percentageRate.toString(), upline?.percentageRate.toString() ?? 0);
+      // SubAgent IDs keep their percentage with the sub agent; the agent is posted the remainder.
+      const appliedAgentPercentage = effectiveAgentPercentage(identifier.type, identifier.percentageRate.toString());
+      const calculation = calculateSettlement(amount, appliedAgentPercentage, upline?.percentageRate.toString() ?? 0);
       const direction = amount.isNegative() ? -1 : 1;
       const signedAgentShare = calculation.agentShare.mul(direction);
       const signedUplineShare = calculation.uplineShare.mul(direction);
@@ -68,7 +73,7 @@ export async function postSettlement(input: PostSettlementInput) {
           settlementDate: input.settlementDate,
           amount: pd(amount),
           absoluteAmount: pd(calculation.absoluteAmount),
-          agentPercentage: identifier.percentageRate,
+          agentPercentage: pd(appliedAgentPercentage),
           agentShare: pd(calculation.agentShare),
           companyShare: pd(calculation.companyShare),
           uplinePercentage: upline?.percentageRate ?? 0,
@@ -105,7 +110,7 @@ export async function postSettlement(input: PostSettlementInput) {
       await Promise.all([
         tx.agentIdentifier.update({ where: { id: identifier.id }, data: { currentBalance: { increment: pd(amount) } } }),
         tx.companyAgent.update({ where: { companyId_agentId: { companyId: input.companyId, agentId: identifier.agentId } }, data: { currentBalance: pd(agentClosing) } }),
-        tx.auditLog.create({ data: { actorId: input.actorId, companyId: input.companyId, action: "settlement.create", entityType: "Settlement", entityId: settlement.id, requestId: input.requestId, newValues: { identifierId: identifier.id, uplineId: upline?.id, amount: amount.toString(), agentPercentage: identifier.percentageRate.toString(), agentShare: calculation.agentShare.toString(), uplineShare: calculation.uplineShare.toString(), companyShare: calculation.companyShare.toString(), companyProfit: calculation.companyProfit.toString() } } }),
+        tx.auditLog.create({ data: { actorId: input.actorId, companyId: input.companyId, action: "settlement.create", entityType: "Settlement", entityId: settlement.id, requestId: input.requestId, newValues: { identifierId: identifier.id, uplineId: upline?.id, amount: amount.toString(), agentPercentage: appliedAgentPercentage.toString(), configuredPercentage: identifier.percentageRate.toString(), identifierType: identifier.type, agentShare: calculation.agentShare.toString(), uplineShare: calculation.uplineShare.toString(), companyShare: calculation.companyShare.toString(), companyProfit: calculation.companyProfit.toString() } } }),
       ]);
       await recalculateAgentBalances(tx, input.companyId, identifier.agentId);
       await recalculateNonAgentBalances(tx, input.companyId);

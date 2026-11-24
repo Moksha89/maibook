@@ -88,7 +88,7 @@ function BaseInput({ className, icon, prefix, suffix, hint, error, strength, rev
   const isAmount = isNumber && /amount|balance/i.test(name);
   const isPercent = isNumber && /percent/i.test(name);
   const showStrength = strength ?? (isPassword && props.autoComplete === "new-password" && !/confirm/i.test(name));
-  const showStepper = stepper ?? (isNumber && !isAmount && !isPercent);
+  const showStepper = stepper ?? false;
 
   useEffect(() => {
     if (!showStrength) return;
@@ -126,7 +126,7 @@ function BaseInput({ className, icon, prefix, suffix, hint, error, strength, rev
 
   const leading = icon === undefined ? pickIcon(name, type, props.autoComplete) : icon;
   const score = strengthOf(value);
-  const strengthText = !value ? "Use 8+ characters with upper & lower case, a number and a symbol." : ["Too weak", "Weak password", "Fair password", "Good password", "Strong password"][score];
+  const strengthText = !value ? "Use 12+ characters with upper & lower case, a number and a symbol." : ["Too weak", "Weak password", "Fair password", "Good password", "Strong password"][score];
   const barColor = score <= 1 ? "bg-[#e5484d]" : score === 2 ? "bg-[#f5a524]" : "bg-[#2fb36a]";
   const { onInput, onBlur, onInvalid, ...restProps } = props;
   const rest = { ...inferConstraints(name, type, restProps), ...restProps };

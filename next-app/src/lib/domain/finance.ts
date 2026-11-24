@@ -56,6 +56,37 @@ export function splitCreditDebit(value: DecimalInput) {
     : { credit: new Decimal(0), debit: signedValue.abs() };
 }
 
+/**
+ * Percentage of a settlement that is posted to the agent. A normal (AGENT) ID posts its configured percentage.
+ * A SUB_AGENT ID keeps its configured percentage with the sub agent, so the agent is posted the remainder.
+ */
+export function effectiveAgentPercentage(type: "AGENT" | "SUB_AGENT", configuredPercentage: DecimalInput) {
+  const rate = assertPercentage(configuredPercentage, "Agent percentage");
+  return type === "SUB_AGENT" ? new Decimal(100).sub(rate) : rate;
+}
+
+/** +1 for a settlement that gains, -1 for one that loses. Shares and profit always follow this sign. */
+export function settlementSign(amount: DecimalInput) {
+  return decimal(amount).isNegative() ? -1 : 1;
+}
+
+export function signedSettlementShare(amount: DecimalInput, share: DecimalInput) {
+  return decimal(share).abs().mul(settlementSign(amount));
+}
+
+/** Signed totals for a set of posted settlements: losses reduce profit. */
+export function summarizeSettlementProfit(rows: { amount: DecimalInput; absoluteAmount: DecimalInput; agentShare: DecimalInput; uplineShare: DecimalInput }[]) {
+  let total = decimal(0);
+  let agentShare = decimal(0);
+  let uplineShare = decimal(0);
+  for (const row of rows) {
+    total = total.add(signedSettlementShare(row.amount, row.absoluteAmount));
+    agentShare = agentShare.add(signedSettlementShare(row.amount, row.agentShare));
+    uplineShare = uplineShare.add(signedSettlementShare(row.amount, row.uplineShare));
+  }
+  return { totalSettlements: total, agentShare, uplineShare, companyProfit: total.sub(agentShare).sub(uplineShare) };
+}
+
 export function calculateSettlement(
   amount: DecimalInput,
   agentPercentage: DecimalInput,

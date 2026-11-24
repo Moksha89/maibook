@@ -19,7 +19,7 @@ export function EditIdentifierForm({ identifier }: { identifier: { id: string; v
       <div className="grid gap-2 sm:grid-cols-3">
         <label className="text-xs font-bold text-[#0d1a2c]">ID value<Input name="value" className="mt-1" defaultValue={identifier.value} required /></label>
         <label className="text-xs font-bold text-[#0d1a2c]">Type<SegmentedToggle name="type" label="ID type" size="md" className="mt-1 w-full" defaultValue={identifier.type} options={[{ value: "AGENT", label: "Agent" }, { value: "SUB_AGENT", label: "Sub Agent" }]} /></label>
-        <label className="text-xs font-bold text-[#0d1a2c]">Agent percentage<Input name="percentageRate" className="mt-1" type="number" min="0" max="100" step="0.0001" defaultValue={identifier.percentageRate} required /></label>
+        <label className="text-xs font-bold text-[#0d1a2c]">Agent percentage<Input name="percentageRate" className="mt-1" type="number" min="0" max="100" step="0.0001" defaultValue={identifier.percentageRate} required /><span className="mt-1 block text-[11px] font-normal text-[#647386]">Agent ID: this percentage is posted to the agent. SubAgent ID: the sub agent keeps this percentage and the agent is posted the remaining percentage (80 keeps 80, posts 20).</span></label>
       </div>
       <p className="mt-2 text-[11px] text-[#647386]">Existing settlements keep the rate they were posted with. The new rate applies to future settlements.</p>
       {state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null}
