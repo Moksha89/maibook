@@ -9,7 +9,12 @@ const nextConfig: NextConfig = {
   cacheComponents: false,
   // Lets open browser tabs notice a new release (and reload) instead of posting to server actions that no longer exist.
   ...(process.env.DEPLOYMENT_ID ? { deploymentId: process.env.DEPLOYMENT_ID } : {}),
-  experimental: { authInterrupts: true, serverActions: { bodySizeLimit: "512mb" } },
+  experimental: {
+    authInterrupts: true,
+    serverActions: { bodySizeLimit: "512mb" },
+    // Keep visited/prefetched pages in the browser's router cache briefly so sidebar navigation is instant. Mutations clear it.
+    staleTimes: { dynamic: 30, static: 60 },
+  },
   turbopack: {
     root: projectRoot,
     rules: {

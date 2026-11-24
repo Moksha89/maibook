@@ -430,6 +430,7 @@ model LedgerEntry {
 
   @@index([companyId, entryDate, deletedAt])
   @@index([sourceEntity, sourceId])
+  @@index([entryDate(sort: Desc), createdAt(sort: Desc)])
   @@map("ledger_entries")
 }
 
@@ -803,6 +804,7 @@ model AuditLog {
   @@index([companyId, createdAt])
   @@index([entityType, entityId])
   @@index([action, createdAt])
+  @@index([createdAt(sort: Desc)])
   @@map("audit_logs")
 }
 

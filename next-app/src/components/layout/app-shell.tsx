@@ -28,12 +28,19 @@ const navigation: { href: string; label: string; icon: LucideIcon; permission: s
   { href: "/api-access", label: "API access", icon: KeyRound, permission: "api_tokens.read" },
 ];
 
+/** Sidebar link: the shell is prefetched as usual, and the full page data is fetched as soon as the pointer or focus lands on it. */
+function NavigationLink({ href, className, onClick, children }: { href: string; className: string; onClick?: () => void; children: React.ReactNode }) {
+  const [hot, setHot] = useState(false);
+  const warm = () => setHot(true);
+  return <Link href={href} prefetch={hot ? true : undefined} onMouseEnter={warm} onFocus={warm} onTouchStart={warm} onClick={onClick} className={className}>{children}</Link>;
+}
+
 function NavigationLinks({ permissions, onNavigate }: { permissions: string[]; onNavigate?: () => void }) {
   const pathname = usePathname();
   return navigation.filter((item) => permissions.includes(item.permission)).map((item) => {
     const Icon = item.icon;
     const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-    return <Link key={item.href} href={item.href} onClick={onNavigate} className={clsx("flex h-8 items-center gap-2 rounded-md px-2.5 text-[13px] font-medium transition", active ? "bg-[#c9952e] text-[#08111f]" : "text-[#c5ced9] hover:bg-white/7 hover:text-white")}><Icon className="size-4 shrink-0" /><span>{item.label}</span></Link>;
+    return <NavigationLink key={item.href} href={item.href} onClick={onNavigate} className={clsx("flex h-8 items-center gap-2 rounded-md px-2.5 text-[13px] font-medium transition", active ? "bg-[#c9952e] text-[#08111f]" : "text-[#c5ced9] hover:bg-white/7 hover:text-white")}><Icon className="size-4 shrink-0" /><span>{item.label}</span></NavigationLink>;
   });
 }
 

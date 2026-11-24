@@ -15,6 +15,8 @@ const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-ibm-plex-mono",
   weight: ["400", "500", "600"],
   subsets: ["latin"],
+  // Mono is only used for figures inside tables; do not make every first paint wait for three extra font files.
+  preload: false,
 });
 
 export const metadata: Metadata = {

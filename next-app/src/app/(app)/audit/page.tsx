@@ -25,7 +25,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     db.auditLog.count({ where }),
     db.user.findMany({ where: { deletedAt: null }, select: { id: true, displayName: true }, orderBy: { displayName: "asc" } }),
     db.company.findMany({ where: { deletedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    db.auditLog.findMany({ distinct: ["entityType"], select: { entityType: true }, orderBy: { entityType: "asc" } }),
+    // Loose index scan: one index probe per distinct value instead of reading every audit row.
+    db.$queryRaw<{ entityType: string }[]>`WITH RECURSIVE t AS (SELECT min(entity_type) AS v FROM audit_logs UNION ALL SELECT (SELECT min(entity_type) FROM audit_logs WHERE entity_type > t.v) FROM t WHERE t.v IS NOT NULL) SELECT v AS "entityType" FROM t WHERE v IS NOT NULL ORDER BY v`,
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const { page: _page, ...filters } = query; void _page;

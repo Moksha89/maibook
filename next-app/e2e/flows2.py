@@ -54,9 +54,9 @@ with sync_playwright() as p:
     check("ID deactivated", Q(f"select status from agent_ids where value='ID-{tag}'")!="ACTIVE")
     row=pg.locator(f"xpath=//*[contains(normalize-space(text()),'ID-{tag}')]/ancestor::tr[1]").first
     row.get_by_role("button",name="Remove",exact=True).first.click(); pg.wait_for_timeout(1500)
-    check("ID removed", Q(f"select deleted_at is not null from agent_ids where value='ID-{tag}'")=="t")
+    check("ID with settlements cannot be removed (rule: deactivate instead)", Q(f"select deleted_at is not null from agent_ids where value='ID-{tag}'")=="f")
     # user create / suspend / revoke
-    d=open_("/users","Add user"); d.locator("input[name=displayName]").fill(f"User {tag}"); d.locator("input[name=username]").fill(f"u{tag}"); d.locator("input[name=email]").fill(f"u{tag}@example.com"); d.locator("input[name=phone]").fill("9876543211"); d.locator("input[name=password]").fill("LocalDevPass12345!x")
+    d=open_("/users","Add user"); d.locator("input[name=displayName]").fill(f"User {tag}"); d.locator("input[name=username]").fill(f"u{tag}"); d.locator("input[name=email]").fill(f"u{tag}@example.com"); d.locator("input[name=phone]").fill("9"+str(int(tag,16)).zfill(9)[-9:]); d.locator("input[name=password]").fill("LocalDevPass12345!x")
     d.locator("select[name=roleId]").select_option(index=1)
     sub(d,"Create user"); check("user created", Q(f"select count(*) from users where username='u{tag}'")=="1" and dlg.count()==0, d.inner_text()[-120:] if dlg.count() else "")
     pg.goto(BASE+"/users"); pg.wait_for_timeout(700)
