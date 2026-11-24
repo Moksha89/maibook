@@ -11,11 +11,12 @@ import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { ExpandingSearch } from "@/components/ui/expanding-search";
 import { LinkButton } from "@/components/ui/button";
+import { whole, balanceTone, stamp } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
 const PAGE_SIZE = 10;
-const money = (value: unknown) => Number(value ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (value: unknown) => Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0, signDisplay: "negative" });
 const quickActions = [["/ledger", "Ledger", "ledger.read"], ["/settlements", "Settlements", "settlements.read"], ["/reports", "Generate report", "reports.read"], ["/companies", "Companies", "companies.read"], ["/agents", "Agents", "agents.read"]] as const;
 
 const quickIcons: Record<string, typeof Users> = { "/ledger": WalletCards, "/settlements": ChartNoAxesCombined, "/reports": FileBarChart, "/companies": Building2, "/agents": Users };
@@ -47,31 +48,32 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     db.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 8, include: { actor: { select: { displayName: true } }, company: { select: { name: true } } } }),
   ]);
   const stats = [
-    { label: "Active companies", value: companyCount.toLocaleString(), icon: Building2 },
-    { label: "Active agents", value: agentCount.toLocaleString(), icon: Users },
-    { label: "Active IDs", value: identifierCount.toLocaleString(), icon: IdCard },
+    { label: "Active companies", value: companyCount.toLocaleString("en-IN"), icon: Building2 },
+    { label: "Active agents", value: agentCount.toLocaleString("en-IN"), icon: Users },
+    { label: "Active IDs", value: identifierCount.toLocaleString("en-IN"), icon: IdCard },
     { label: "Net agent coin balance", value: money(balanceTotal._sum.currentBalance), icon: Coins },
-    ...(userCount !== null ? [{ label: "Active users", value: userCount.toLocaleString(), icon: UserRoundCheck }] : []),
-    { label: "Posted settlements", value: settlementSummary._count.toLocaleString(), detail: settlementSummary._sum.absoluteAmount?.toFixed(2) ?? "0.00", icon: ChartNoAxesCombined },
+    ...(userCount !== null ? [{ label: "Active users", value: userCount.toLocaleString("en-IN"), icon: UserRoundCheck }] : []),
+    { label: "Posted settlements", value: settlementSummary._count.toLocaleString("en-IN"), icon: ChartNoAxesCombined },
+    { label: "Settlement value", value: Number(whole(settlementSummary._sum.absoluteAmount ?? 0)).toLocaleString("en-IN"), icon: WalletCards },
   ];
 
   return (
     <>
-      <PageHeader title="Dashboard" description="Current operational totals and recent account activity." />
-      {backupHealth && (backupHealth.stale || backupHealth.failedSince) ? <Link prefetch={false} href="/database" className="mb-3 block rounded-lg border border-[#f0c36d] bg-[#fff4d7] px-3 py-2 text-xs font-semibold text-[#72500c]">{backupHealth.failedSince ? "The latest database backup failed." : "No database backup has completed in the last 26 hours."} Open Database to review.</Link> : null}
-      {whatsapp && whatsapp.status !== "CONNECTED" ? <Link prefetch={false} href="/whatsapp" className="mb-3 block rounded-lg border border-[#f0c36d] bg-[#fff4d7] px-3 py-2 text-xs font-semibold text-[#72500c]">WhatsApp is not connected ({whatsapp.status.replaceAll("_", " ").toLowerCase()}). Open WhatsApp to reconnect.</Link> : null}
-      <nav aria-label="Quick actions" className="mb-3 flex flex-wrap gap-2">{quickActions.filter((_, index) => canReadUsersActions[index]).map(([href, label]) => <LinkButton key={href} href={href} variant="secondary" icon={quickIcons[href]}>{label}</LinkButton>)}</nav>
-      <section className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map(({ label, value, detail, icon: Icon }) => <article key={label} className="rounded-lg border bg-white p-3 shadow-[0_1px_2px_rgba(8,17,31,0.04)]"><div className="flex items-center justify-between"><p className="text-xs font-semibold text-[#647386]">{label}</p><Icon className="size-4 text-[#a97819]" /></div><p className="mt-1 font-mono text-xl font-semibold text-[#0d1a2c]">{value}</p>{detail ? <p className="mt-0.5 font-mono text-[11px] text-[#647386]">Value {detail}</p> : null}</article>)}
+      <PageHeader title="Dashboard" />
+      {backupHealth && (backupHealth.stale || backupHealth.failedSince) ? <Link prefetch={false} href="/database" className="mb-3 block truncate rounded-lg border border-[#f0c36d] bg-[#fff4d7] px-3 py-1.5 text-[11px] font-semibold text-[#72500c] sm:text-xs" title="Open Database to review.">{backupHealth.failedSince ? "Latest database backup failed." : "No backup in the last 26 hours."} Open Database.</Link> : null}
+      {whatsapp && whatsapp.status !== "CONNECTED" ? <Link prefetch={false} href="/whatsapp" className="mb-3 block truncate rounded-lg border border-[#f0c36d] bg-[#fff4d7] px-3 py-1.5 text-[11px] font-semibold text-[#72500c] sm:text-xs">WhatsApp is not connected ({whatsapp.status.replaceAll("_", " ").toLowerCase()}). Open WhatsApp to reconnect.</Link> : null}
+      <nav aria-label="Quick actions" className="mb-3 flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{quickActions.filter((_, index) => canReadUsersActions[index]).map(([href, label]) => <LinkButton key={href} href={href} variant="secondary" icon={quickIcons[href]} className="shrink-0 whitespace-nowrap">{label}</LinkButton>)}</nav>
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
+        {stats.map(({ label, value, icon: Icon }) => <article key={label} className="min-w-0 rounded-lg border bg-white px-3 py-2 shadow-[0_1px_2px_rgba(8,17,31,0.04)]"><div className="flex items-center justify-between gap-1"><p className="truncate text-[11px] font-semibold text-[#647386]">{label}</p><Icon className="size-3.5 shrink-0 text-[#a97819]" /></div><p className="mt-0.5 truncate font-mono text-lg font-semibold text-[#0d1a2c]">{value}</p></article>)}
       </section>
       <section className="mt-4 overflow-hidden rounded-lg border bg-white">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2.5"><h2 className="text-sm font-bold text-[#0d1a2c]">Company balances</h2><FilterForm className="flex items-center gap-1.5"><ExpandingSearch defaultValue={q} label="Search companies" /></FilterForm></div>
-        {companyPage.length ? <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-left text-xs"><thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2 font-semibold">Company</th><th className="px-3 py-2 text-right font-semibold">Agents</th><th className="px-3 py-2 text-right font-semibold" title="Active ledger entries only; deleted entries are not counted">Active entries</th><th className="px-3 py-2 text-right font-semibold">Agent coin balance</th></tr></thead><tbody>{companyPage.map((company) => { const balance = Number(balanceByCompany.get(company.id) ?? 0); return <tr key={company.id} className="border-t"><td className="px-3 py-2 font-semibold"><Link prefetch={false} href={`/companies/${company.id}`} className="text-[#8a6012] hover:underline">{company.name}</Link></td><td className="px-3 py-2 text-right font-mono">{company._count.agents}</td><td className="px-3 py-2 text-right font-mono">{company._count.ledgerEntries}</td><td className={`px-3 py-2 text-right font-mono font-semibold ${balance < 0 ? "text-[#b42318]" : "text-[#16794b]"}`}>{money(balance)}</td></tr>; })}</tbody></table></div> : <p className="px-3 py-6 text-center text-xs text-[#647386]">No companies match this view.</p>}
+        {companyPage.length ? <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-left text-xs"><thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2 font-semibold">Company</th><th className="px-3 py-2 text-right font-semibold">Agents</th><th className="px-3 py-2 text-right font-semibold" title="Active ledger entries only; deleted entries are not counted">Active entries</th><th className="px-3 py-2 text-right font-semibold">Agent coin balance</th></tr></thead><tbody>{companyPage.map((company) => { const balance = Number(balanceByCompany.get(company.id) ?? 0); return <tr key={company.id} className="border-t"><td className="px-3 py-2 font-semibold"><Link prefetch={false} href={`/companies/${company.id}`} className="text-[#8a6012] hover:underline">{company.name}</Link></td><td className="px-3 py-2 text-right font-mono">{company._count.agents}</td><td className="px-3 py-2 text-right font-mono">{company._count.ledgerEntries}</td><td className={`px-3 py-2 text-right font-mono font-semibold ${balanceTone(balance)}`}>{money(balance)}</td></tr>; })}</tbody></table></div> : <p className="px-3 py-6 text-center text-xs text-[#647386]">No companies match this view.</p>}
         {pages > 1 ? <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-[#647386]"><span>Page {page} of {pages}</span><span className="flex gap-2">{page > 1 ? <Link prefetch={false} className="rounded-md border px-3 py-1 font-semibold text-[#10233f]" href={`/dashboard?q=${encodeURIComponent(q)}&page=${page - 1}`}>Previous</Link> : null}{page < pages ? <Link prefetch={false} className="rounded-md border px-3 py-1 font-semibold text-[#10233f]" href={`/dashboard?q=${encodeURIComponent(q)}&page=${page + 1}`}>Next</Link> : null}</span></div> : null}
       </section>
       <section className="mt-4 overflow-hidden rounded-lg border bg-white">
         <div className="flex items-center justify-between border-b px-3 py-2.5"><h2 className="text-sm font-bold text-[#0d1a2c]">Recent activity</h2><StatusBadge tone="success">Audit enabled</StatusBadge></div>
-        {recentAudit.length ? <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left text-xs"><thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2 font-semibold">Action</th><th className="px-3 py-2 font-semibold">User</th><th className="px-3 py-2 font-semibold">Company</th><th className="px-3 py-2 font-semibold">When</th></tr></thead><tbody>{recentAudit.map((entry) => <tr key={entry.id} className="border-t"><td className="px-3 py-2 font-mono text-[11px]">{entry.action}</td><td className="px-3 py-2">{entry.actor?.displayName ?? "System"}</td><td className="px-3 py-2">{entry.company?.name ?? "Global"}</td><td className="px-3 py-2 text-[#647386]">{entry.createdAt.toLocaleString()}</td></tr>)}</tbody></table></div> : <p className="px-3 py-7 text-center text-xs text-[#647386]">Activity will appear here as work is recorded.</p>}
+        {recentAudit.length ? <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left text-xs"><thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2 font-semibold">Action</th><th className="px-3 py-2 font-semibold">User</th><th className="px-3 py-2 font-semibold">Company</th><th className="px-3 py-2 font-semibold">When</th></tr></thead><tbody>{recentAudit.map((entry) => <tr key={entry.id} className="border-t"><td className="px-3 py-2 font-mono text-[11px]">{entry.action}</td><td className="px-3 py-2">{entry.actor?.displayName ?? "System"}</td><td className="px-3 py-2">{entry.company?.name ?? "Global"}</td><td className="whitespace-nowrap px-3 py-2 text-[#647386]">{stamp(entry.createdAt)}</td></tr>)}</tbody></table></div> : <p className="px-3 py-7 text-center text-xs text-[#647386]">No activity yet.</p>}
       </section>
     </>
   );
