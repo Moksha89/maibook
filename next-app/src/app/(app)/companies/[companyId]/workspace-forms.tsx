@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FormModal } from "@/components/ui/form-modal";
 import { Input } from "@/components/ui/input";
 import type { ActionState } from "@/lib/actions/types";
-import { createManualUplineEntryAction, createShareholderAction, createUplineAction, createUplineGroupAction, distributeProfitAction } from "./actions";
+import { createManualUplineEntryAction, createShareholderAction, createUplineAction, createUplineGroupAction, distributeProfitAction, updateShareholderAction, updateUplineAction } from "./actions";
 
 function Feedback({ state }: { state: ActionState }) { return state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null; }
 
@@ -34,4 +34,14 @@ export function ProfitDistributionForm({ companyId, initialIdempotencyKey }: { c
   const [state, action, pending] = useActionState(distributeProfitAction, {} as ActionState);
   const firstDay = new Date(); firstDay.setDate(1);
   return <FormModal trigger="Distribute profit" title="Distribute settlement profit"><form action={action} className="rounded-lg border bg-white p-3"><input type="hidden" name="companyId" value={companyId} /><input type="hidden" name="idempotencyKey" value={state.data?.idempotencyKey ?? initialIdempotencyKey} /><div className="grid gap-2 sm:grid-cols-2"><Input name="periodStart" type="date" defaultValue={firstDay.toISOString().slice(0, 10)} required /><Input name="periodEnd" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></div><p className="mt-2 text-[11px] text-[#647386]">Uses posted settlements only. Manual agent and upline entries are excluded.</p><Feedback state={state} /><div className="mt-3 flex justify-end"><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}Distribute</Button></div></form></FormModal>;
+}
+
+export function EditUplineForm({ upline }: { upline: { id: string; name: string; percentageRate: string } }) {
+  const [state, action, pending] = useActionState(updateUplineAction, {} as ActionState);
+  return <form action={action} className="rounded-lg border bg-white p-3"><input type="hidden" name="uplineId" value={upline.id} /><div className="grid gap-2 sm:grid-cols-[1fr_140px]"><Input name="name" defaultValue={upline.name} required /><Input name="percentageRate" type="number" min="0" max="100" step="0.0001" defaultValue={upline.percentageRate} required /></div><Feedback state={state} /><div className="mt-3 flex justify-end"><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}Save changes</Button></div></form>;
+}
+
+export function EditShareholderForm({ shareholder }: { shareholder: { id: string; name: string; percentage: string; phone: string | null; email: string | null } }) {
+  const [state, action, pending] = useActionState(updateShareholderAction, {} as ActionState);
+  return <form action={action} className="rounded-lg border bg-white p-3"><input type="hidden" name="shareholderId" value={shareholder.id} /><div className="grid gap-2 sm:grid-cols-2"><Input name="name" defaultValue={shareholder.name} required /><Input name="percentage" type="number" min="0.0001" max="100" step="0.0001" defaultValue={shareholder.percentage} required /><Input name="phone" defaultValue={shareholder.phone ?? ""} placeholder="Phone" /><Input name="email" type="email" defaultValue={shareholder.email ?? ""} placeholder="Email" /></div><Feedback state={state} /><div className="mt-3 flex justify-end"><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}Save changes</Button></div></form>;
 }

@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import type { ActionState } from "@/lib/actions/types";
 import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
@@ -96,4 +97,104 @@ export async function distributeProfitAction(_: ActionState, formData: FormData)
   } catch (error) {
     return { status: "error", message: error instanceof Error ? error.message : "Profit could not be distributed." };
   }
+}
+
+function overHundred(error: unknown) {
+  return (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2004") || (error instanceof Error && error.message.includes("cannot exceed 100"));
+}
+
+const updateUplineSchema = uplineSchema.omit({ companyId: true }).extend({ uplineId: z.string().uuid() });
+const updateShareholderSchema = shareholderSchema.omit({ companyId: true }).extend({ shareholderId: z.string().uuid() });
+
+async function auditCompany(companyId: string, action: string, entityType: string, entityId: string, values?: { oldValues?: Prisma.InputJsonValue; newValues?: Prisma.InputJsonValue }) {
+  const session = await requireSession();
+  await db.auditLog.create({ data: { actorId: session.userId, companyId, action, entityType, entityId, requestId: randomUUID(), ...values } });
+}
+
+export async function updateUplineAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("uplines.update");
+  const parsed = updateUplineSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
+  const upline = await db.upline.findFirst({ where: { id: parsed.data.uplineId, deletedAt: null } });
+  if (!upline) return { status: "error", message: "This upline no longer exists." };
+  await requireCompanyAccess(upline.companyId, "FULL");
+  try { await db.upline.update({ where: { id: upline.id }, data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentageRate: parsed.data.percentageRate } }); }
+  catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "An upline with this name already exists." }; throw error; }
+  await auditCompany(upline.companyId, "upline.update", "Upline", upline.id, { oldValues: { name: upline.name, percentageRate: upline.percentageRate.toString() }, newValues: { name: parsed.data.name, percentageRate: parsed.data.percentageRate } });
+  revalidatePath(`/companies/${upline.companyId}`);
+  return { status: "success", message: "Upline updated." };
+}
+
+export async function setUplineStatusAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("uplines.update");
+  const uplineId = String(formData.get("uplineId") || "");
+  const status = formData.get("status") === "ACTIVE" ? "ACTIVE" : "INACTIVE";
+  const upline = await db.upline.findFirst({ where: { id: uplineId, deletedAt: null } });
+  if (!upline) return { status: "error", message: "This upline no longer exists." };
+  await requireCompanyAccess(upline.companyId, "FULL");
+  await db.upline.update({ where: { id: upline.id }, data: { status } });
+  await auditCompany(upline.companyId, `upline.${status === "ACTIVE" ? "activate" : "deactivate"}`, "Upline", upline.id, { newValues: { status } });
+  revalidatePath(`/companies/${upline.companyId}`);
+  return { status: "success" };
+}
+
+export async function deleteUplineAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("uplines.delete");
+  const uplineId = String(formData.get("uplineId") || "");
+  const upline = await db.upline.findFirst({ where: { id: uplineId, deletedAt: null }, include: { _count: { select: { entries: true, ledgerLines: true, groups: true } } } });
+  if (!upline) return { status: "error", message: "This upline no longer exists." };
+  await requireCompanyAccess(upline.companyId, "FULL");
+  if (upline._count.entries || upline._count.ledgerLines) return { status: "error", message: "This upline has ledger history and cannot be removed. Deactivate it instead." };
+  if (upline._count.groups) return { status: "error", message: "Remove this upline from its groups first." };
+  if (!upline.currentBalance.isZero()) return { status: "error", message: "Clear the balance before removing this upline." };
+  await db.upline.update({ where: { id: upline.id }, data: { deletedAt: new Date(), status: "INACTIVE", normalizedName: `${upline.normalizedName}~deleted-${upline.id.slice(0, 8)}` } });
+  await auditCompany(upline.companyId, "upline.delete", "Upline", upline.id, { oldValues: { name: upline.name } });
+  revalidatePath(`/companies/${upline.companyId}`);
+  return { status: "success", message: `${upline.name} was removed.` };
+}
+
+export async function updateShareholderAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("shareholders.update");
+  const parsed = updateShareholderSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
+  const shareholder = await db.shareholder.findFirst({ where: { id: parsed.data.shareholderId, deletedAt: null } });
+  if (!shareholder) return { status: "error", message: "This shareholder no longer exists." };
+  await requireCompanyAccess(shareholder.companyId, "FULL");
+  try { await db.shareholder.update({ where: { id: shareholder.id }, data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentage: parsed.data.percentage, phone: parsed.data.phone ? normalizePhone(parsed.data.phone) : null, email: parsed.data.email ? normalizeEmail(parsed.data.email) : null } }); }
+  catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "A shareholder with this name already exists." };
+    if (overHundred(error)) return { status: "error", message: "Active shareholder percentages cannot exceed 100 percent." };
+    throw error;
+  }
+  await auditCompany(shareholder.companyId, "shareholder.update", "Shareholder", shareholder.id, { oldValues: { name: shareholder.name, percentage: shareholder.percentage.toString() }, newValues: { name: parsed.data.name, percentage: parsed.data.percentage } });
+  revalidatePath(`/companies/${shareholder.companyId}`);
+  return { status: "success", message: "Shareholder updated." };
+}
+
+export async function setShareholderStatusAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("shareholders.update");
+  const shareholderId = String(formData.get("shareholderId") || "");
+  const status = formData.get("status") === "ACTIVE" ? "ACTIVE" : "INACTIVE";
+  const shareholder = await db.shareholder.findFirst({ where: { id: shareholderId, deletedAt: null } });
+  if (!shareholder) return { status: "error", message: "This shareholder no longer exists." };
+  await requireCompanyAccess(shareholder.companyId, "FULL");
+  try { await db.shareholder.update({ where: { id: shareholder.id }, data: { status } }); }
+  catch (error) { if (overHundred(error)) return { status: "error", message: "Active shareholder percentages cannot exceed 100 percent." }; throw error; }
+  await auditCompany(shareholder.companyId, `shareholder.${status === "ACTIVE" ? "activate" : "deactivate"}`, "Shareholder", shareholder.id, { newValues: { status } });
+  revalidatePath(`/companies/${shareholder.companyId}`);
+  return { status: "success" };
+}
+
+export async function deleteShareholderAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("shareholders.delete");
+  const shareholderId = String(formData.get("shareholderId") || "");
+  const shareholder = await db.shareholder.findFirst({ where: { id: shareholderId, deletedAt: null }, include: { _count: { select: { entries: true } } } });
+  if (!shareholder) return { status: "error", message: "This shareholder no longer exists." };
+  await requireCompanyAccess(shareholder.companyId, "FULL");
+  if (shareholder._count.entries) return { status: "error", message: "This shareholder has profit entries and cannot be removed. Deactivate it instead." };
+  if (!shareholder.currentBalance.isZero()) return { status: "error", message: "Clear the balance before removing this shareholder." };
+  await db.shareholder.update({ where: { id: shareholder.id }, data: { deletedAt: new Date(), status: "INACTIVE", normalizedName: `${shareholder.normalizedName}~deleted-${shareholder.id.slice(0, 8)}` } });
+  await auditCompany(shareholder.companyId, "shareholder.delete", "Shareholder", shareholder.id, { oldValues: { name: shareholder.name } });
+  revalidatePath(`/companies/${shareholder.companyId}`);
+  return { status: "success", message: `${shareholder.name} was removed.` };
 }

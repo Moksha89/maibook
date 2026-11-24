@@ -11,3 +11,14 @@ export const createUserSchema = z.object({
   maxDevices: z.coerce.number().int().min(1).max(10),
   expiresAt: z.preprocess((value) => value === "" ? undefined : value, z.coerce.date().optional()),
 });
+
+export const updateUserSchema = z.object({
+  userId: z.string().uuid(),
+  displayName: z.string().trim().min(2).max(120),
+  email: z.union([z.literal(""), z.string().email().max(254)]).optional(),
+  phone: z.string().trim().max(30).optional(),
+  roleId: z.string().uuid(),
+  maxDevices: z.coerce.number().int().min(1).max(10),
+  expiresAt: z.preprocess((value) => value === "" ? undefined : value, z.coerce.date().optional()),
+  newPassword: z.union([z.literal(""), passwordSchema]).optional(),
+});
