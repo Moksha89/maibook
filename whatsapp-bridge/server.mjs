@@ -12,7 +12,20 @@ const HOST = process.env.BRIDGE_HOST || "127.0.0.1";
 const PORT = Number(process.env.BRIDGE_PORT || 3110);
 const WEBHOOK = process.env.APP_WEBHOOK_URL || "http://127.0.0.1:3100/api/internal/whatsapp/webhook";
 const SESSIONS_DIR = path.resolve(process.env.SESSIONS_DIR || "./sessions");
-const logger = pino({ level: process.env.LOG_LEVEL || "warn" });
+/** Outgoing 1:1 message stanzas (tags and attributes only; payload text is stripped) make addressing problems visible in the journal. */
+export const sanitizeStanza = (xml) => String(xml).replace(/>[^<]{12,}</g, ">…<").replace(/\d{6}(?=\d{4}[@:])/g, "******").slice(0, 1500);
+const wantStanzas = process.env.LOG_STANZAS !== "0";
+const logger = pino({
+  level: wantStanzas ? "trace" : (process.env.LOG_LEVEL || "warn"),
+  hooks: {
+    logMethod(args, method, level) {
+      if (level >= 40) return method.apply(this, args);
+      if (wantStanzas && level === 10 && args[0] && typeof args[0] === "object" && args[0].msg === "xml send" && typeof args[0].xml === "string" && args[0].xml.startsWith("<message")) {
+        console.log(new Date().toISOString(), "outgoing", sanitizeStanza(args[0].xml));
+      }
+    },
+  },
+});
 const log = (...args) => console.log(new Date().toISOString(), ...args);
 
 // libsignal prints whole session objects (including key material) with console.info/warn; keep those out of the journal.
@@ -82,16 +95,26 @@ async function connect(sessionKey, state) {
   const { state: auth, saveCreds } = await useMultiFileAuthState(dirFor(sessionKey));
   let version;
   try { version = (await fetchLatestBaileysVersion()).version; } catch { /* use bundled default */ }
+  log("whatsapp web version", Array.isArray(version) ? version.join(".") : "bundled default");
   const sock = makeWASocket({ auth, version, logger, browser: Browsers.ubuntu("Maibook"), printQRInTerminal: false, markOnlineOnConnect: false, syncFullHistory: false, generateHighQualityLinkPreview: false });
   state.sock = sock;
   sock.ev.on("creds.update", saveCreds);
   // Raw protocol acknowledgements (attributes only, never message content) so delivery problems can be diagnosed from the journal.
   sock.ws.on("CB:ack,class:message", (node) => {
     const { id, error, phash } = node.attrs || {};
-    log("server ack", String(id).slice(0, 8), error ? `error=${error}` : "ok");
+    log("server ack", String(id).slice(0, 8), error ? `error=${error}` : "ok", phash ? `phash=${phash}` : "no-phash", `from=${String(node.attrs?.from || "").replace(/\d{6}(?=\d{4}[@:])/, "******")}`);
     if (id && error) recordAck(sessionKey, id, 0, { error: `WhatsApp rejected the message (error ${error}).` });
     else if (id) recordAck(sessionKey, id, 2);
   });
+  // Protocol diagnostics: node names and attributes only (never bodies or key material) for delivery related stanzas.
+  const originalEmit = sock.ws.emit.bind(sock.ws);
+  sock.ws.emit = (event, ...args) => {
+    if (typeof event === "string" && /^CB:(receipt|ack|failure|notification|stream:error)$/.test(event)) {
+      const attrs = args[0]?.attrs || {};
+      if (event !== "CB:ack" || attrs.error || attrs.class !== "message") log("node", event.slice(0, 60), JSON.stringify(Object.fromEntries(Object.entries(attrs).slice(0, 8).map(([k, v]) => [k, String(v).replace(/\d{6}(?=\d{4}[@:])/g, "******").slice(0, 60)]))));
+    }
+    return originalEmit(event, ...args);
+  };
   sock.ws.on("CB:receipt", (node) => log("receipt", String(node.attrs?.id).slice(0, 8), node.attrs?.type || "delivery", String(node.attrs?.from || "").replace(/\d{6}(?=\d{4}@)/, "******")));
   sock.ev.on("messages.update", (updates) => {
     for (const { key, update } of updates) {
@@ -107,7 +130,8 @@ async function connect(sessionKey, state) {
   });
   sock.ev.on("connection.update", async (update) => {
     if (state.sock !== sock) return;
-    const { connection, lastDisconnect, qr } = update;
+    const { connection, lastDisconnect, qr, reachoutTimeLock } = update;
+    if (reachoutTimeLock) log("reachout timelock", JSON.stringify(reachoutTimeLock));
     if (qr) { state.status = "QR_READY"; state.qr = qr; await notify(sessionKey, { status: "QR_READY", qrCode: qr }); }
     if (connection === "open") {
       state.status = "CONNECTED"; state.qr = undefined; state.retries = 0; state.phone = digitsOf(sock.user?.id);
@@ -143,6 +167,36 @@ async function logoutSession(sessionKey) {
   rmSync(dirFor(sessionKey), { recursive: true, force: true });
   await notify(sessionKey, { status: "DISCONNECTED" });
   return { status: "DISCONNECTED" };
+}
+
+const maskId = (id) => (id ? String(id).replace(/\d{6}(?=\d{4}[@:])/, "******") : null);
+async function diagnostics(sessionKey, body) {
+  const state = sessions.get(sessionKey);
+  if (!state?.sock || state.status !== "CONNECTED") { const error = new Error("WhatsApp is not connected."); error.status = 409; throw error; }
+  const sock = state.sock; const out = { status: state.status, user: digitsOf(sock.user?.id).replace(/\d{6}(?=\d{4}$)/, "******"), hasLid: Boolean(sock.user?.lid), ownLid: maskId(sock.user?.lid) };
+  const attempt = async (name, fn) => { try { out[name] = await fn(); } catch (error) { out[name] = { error: String(error?.message || error).slice(0, 200) }; } };
+  await attempt("reachoutTimelock", () => sock.fetchAccountReachoutTimelock());
+  await attempt("newChatCap", () => sock.fetchNewChatMessageCap());
+  const number = String(body.recipient || "").replace(/\D/g, "");
+  if (number) {
+    const jid = `${number}@s.whatsapp.net`;
+    await attempt("onWhatsApp", async () => (await sock.onWhatsApp(jid))?.map((e) => ({ exists: e.exists, jidType: String(e.jid).split("@")[1], lid: Boolean(e.lid) })));
+    await attempt("devices", async () => (await sock.getUSyncDevices([jid], false, false)).map((d) => ({ user: d.user.slice(-4), device: d.device, server: d.server, jid: String(d.jid || "").split("@")[1] })));
+    await attempt("lidMapping", async () => maskId(await sock.signalRepository.lidMapping.getLIDForPN(jid)));
+    if (body.presence) await attempt("presence", async () => {
+      const seen = []; const onPresence = (event) => { for (const [who, value] of Object.entries(event.presences || {})) seen.push({ who: maskId(who), presence: value.lastKnownPresence, lastSeen: value.lastSeen ?? null }); };
+      sock.ev.on("presence.update", onPresence);
+      try { await sock.presenceSubscribe(jid); await new Promise((resolve) => setTimeout(resolve, 8000)); } finally { sock.ev.off("presence.update", onPresence); }
+      return seen;
+    });
+    await attempt("tctoken", async () => {
+      const lid = await sock.signalRepository.lidMapping.getLIDForPN(jid);
+      const keys = [lid, jid].filter(Boolean); const found = {};
+      for (const key of keys) { const data = await sock.authState.keys.get("tctoken", [key]); const entry = data?.[key]; found[key.split("@")[1]] = entry ? { present: true, timestamp: entry.timestamp ?? null, senderTimestamp: entry.senderTimestamp ?? null } : { present: false }; }
+      return found;
+    });
+  }
+  return out;
 }
 
 async function sendMessage(sessionKey, body) {
@@ -199,7 +253,7 @@ const server = http.createServer(async (request, response) => {
     if (!authorised(request)) return send(401, { error: "Unauthorized" });
     const status = /^\/v1\/messages\/([A-Za-z0-9]{6,64})$/.exec(url.pathname);
     if (request.method === "GET" && status) return send(200, acks.get(status[1]) || { status: "UNKNOWN" });
-    const match = /^\/v1\/sessions\/([^/]+)\/(initialize|logout|messages)$/.exec(url.pathname);
+    const match = /^\/v1\/sessions\/([^/]+)\/(initialize|logout|messages|diagnostics)$/.exec(url.pathname);
     if (request.method !== "POST" || !match) return send(404, { error: "Not found" });
     const sessionKey = decodeURIComponent(match[1]);
     if (!validKey(sessionKey)) return send(400, { error: "Invalid session key" });
@@ -207,6 +261,7 @@ const server = http.createServer(async (request, response) => {
       const state = await startSession(sessionKey);
       return send(200, { status: state.status, ...(state.qr ? { qrCode: state.qr } : {}), ...(state.phone ? { phoneNumber: `+${state.phone}` } : {}) });
     }
+    if (match[2] === "diagnostics") return send(200, await diagnostics(sessionKey, await readJson(request)));
     if (match[2] === "logout") return send(200, await logoutSession(sessionKey));
     return send(200, await sendMessage(sessionKey, await readJson(request)));
   } catch (error) {
