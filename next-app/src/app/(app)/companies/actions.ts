@@ -29,12 +29,10 @@ export async function createCompanyAction(_: ActionState, formData: FormData): P
         normalizedName: normalizeName(parsed.data.name),
         slug: slugify(parsed.data.name),
         code: parsed.data.code || null,
-        contactPhone: parsed.data.contactPhone || null,
-        contactEmail: parsed.data.contactEmail || null,
         notes: parsed.data.notes || null,
-        currency: parsed.data.currency,
-        defaultRate: parsed.data.defaultRate === "" || parsed.data.defaultRate === undefined ? null : parsed.data.defaultRate,
-        auditLogs: { create: { actorId: session.userId, action: "company.create", entityType: "Company", requestId: randomUUID(), newValues: { name: parsed.data.name, code: parsed.data.code } } },
+        currency: "INR",
+        defaultRate: null,
+        auditLogs: { create: { actorId: session.userId, action: "company.create", entityType: "Company", requestId: randomUUID(), newValues: { name: parsed.data.name, code: parsed.data.code, notes: parsed.data.notes } } },
       },
     });
     revalidatePath("/", "layout");
