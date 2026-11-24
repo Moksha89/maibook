@@ -13,7 +13,8 @@ import { initializeWhatsAppSession, logoutWhatsAppSession } from "@/lib/services
 
 async function defaultConnection() { return db.whatsAppConnection.upsert({ where: { name: "Primary" }, update: {}, create: { name: "Primary", sessionKey: randomUUID() } }); }
 
-export async function initializeWhatsAppAction(): Promise<void> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function initializeWhatsAppAction(_formData?: FormData): Promise<void> {
   await requirePermission("whatsapp.connect");
   const connection = await defaultConnection();
   await db.whatsAppConnection.update({ where: { id: connection.id }, data: { status: "INITIALIZING", lastError: null, qrCode: null } });
@@ -22,7 +23,8 @@ export async function initializeWhatsAppAction(): Promise<void> {
   revalidatePath("/whatsapp");
 }
 
-export async function logoutWhatsAppAction(): Promise<void> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function logoutWhatsAppAction(_formData?: FormData): Promise<void> {
   await requirePermission("whatsapp.disconnect");
   const connection = await defaultConnection();
   try { await logoutWhatsAppSession(connection.sessionKey); } catch {}

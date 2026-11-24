@@ -7,7 +7,8 @@ import { requirePermission } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { createDatabaseBackup, importBackupArchive, verifyDatabaseBackup } from "@/lib/services/backups";
 
-export async function createBackupAction() { await requirePermission("backups.create"); const session = await requireSession(); await createDatabaseBackup(session.userId); revalidatePath("/database"); }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function createBackupAction(_formData?: FormData) { await requirePermission("backups.create"); const session = await requireSession(); await createDatabaseBackup(session.userId); revalidatePath("/database"); }
 export async function verifyBackupAction(formData: FormData) { await requirePermission("backups.read"); const session = await requireSession(); await verifyDatabaseBackup(String(formData.get("backupId") || ""), session.userId); revalidatePath("/database"); }
 
 export async function uploadBackupAction(_: ActionState, formData: FormData): Promise<ActionState> {
