@@ -36,7 +36,7 @@ export default async function UplineGroupPage({ params, searchParams }: { params
   return <>
     <PageHeader title={group.name} actions={<div className="flex flex-wrap items-center gap-2">
       <Link href="/upline-groups" className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold">Back</Link>
-      {canEdit ? <FormModal size="sm" trigger="Assign site" title={`Assign site to ${group.name}`}><AssignSiteToGroupBody groupId={group.id} sites={unassigned} /></FormModal> : null}
+      {canEdit ? <FormModal size="sm" trigger="Assign site" title={`Assign sites to ${group.name}`}><AssignSiteToGroupBody groupId={group.id} sites={unassigned} /></FormModal> : null}
       {canCreate ? <FormModal size="sm" trigger="Create site" title="Create site"><SiteFormBody groupId={group.id} /></FormModal> : null}
     </div>} />
     <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-3">

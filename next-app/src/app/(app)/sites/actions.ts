@@ -9,6 +9,7 @@ import type { ActionState } from "@/lib/actions/types";
 import { accessibleCompanyIds, requireGroupAccess, requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import { normalizeName } from "@/lib/domain/normalization";
+import { isUuid } from "@/lib/validation/common";
 
 const siteSchema = z.object({
   name: z.string().trim().min(1, "Enter a site name.").max(120),
@@ -91,6 +92,35 @@ export async function assignSiteGroupAction(_: ActionState, formData: FormData):
   await db.site.update({ where: { id: site.id }, data: { uplineGroupId: groupId } });
   refresh([site.uplineGroupId, groupId], site.id);
   return { status: "success", message: groupId ? "Site assigned." : "Site unassigned." };
+}
+
+export async function assignSitesToGroupAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("uplines.update");
+  const groupId = String(formData.get("uplineGroupId") || "");
+  const siteIds = [...new Set(formData.getAll("siteId").map(String).filter(Boolean))];
+  if (!isUuid(groupId)) return { status: "error", message: "This upline group no longer exists." };
+  if (!siteIds.length) return { status: "error", message: "Select at least one site." };
+  if (siteIds.some((id) => !isUuid(id))) return { status: "error", message: "This site no longer exists." };
+  const group = await db.uplineGroup.findUnique({ where: { id: groupId } });
+  if (!group) return { status: "error", message: "This upline group no longer exists." };
+  await requireGroupAccess(group.companyId, "FULL");
+  const sites = await db.site.findMany({ where: { id: { in: siteIds } } });
+  if (sites.length !== siteIds.length) return { status: "error", message: "This site no longer exists." };
+  for (const site of sites) await requireSiteAccess(site);
+  const conflict = sites.find((site) => site.uplineGroupId && site.uplineGroupId !== groupId);
+  if (conflict) return { status: "error", message: `${conflict.name} is already assigned to another group.` };
+  const result = await db.$transaction(async (tx) => {
+    const locked = await tx.site.findMany({ where: { id: { in: siteIds } }, select: { id: true, name: true, uplineGroupId: true } });
+    if (locked.length !== siteIds.length) return { status: "error" as const, message: "This site no longer exists." };
+    const taken = locked.find((site) => site.uplineGroupId && site.uplineGroupId !== groupId);
+    if (taken) return { status: "error" as const, message: `${taken.name} is already assigned to another group.` };
+    await tx.site.updateMany({ where: { id: { in: siteIds } }, data: { uplineGroupId: groupId } });
+    return { status: "success" as const, count: locked.length };
+  });
+  if (result.status === "error") return result;
+  refresh([groupId, ...sites.map((site) => site.uplineGroupId)]);
+  for (const site of sites) revalidatePath(`/sites/${site.id}`);
+  return { status: "success", message: result.count === 1 ? "Site assigned." : `${result.count} sites assigned.` };
 }
 
 export async function deleteSiteAction(_: ActionState, formData: FormData): Promise<ActionState> {
