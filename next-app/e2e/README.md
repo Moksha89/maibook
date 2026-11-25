@@ -3,7 +3,7 @@
 These Playwright (Python, Chrome) scripts drive a LOCAL copy of the app against a LOCAL throw-away database.
 Never point them at maibook.co: they create, edit and delete records and each login registers a device.
 
-Setup: a Postgres database seeded with a superadmin (default 9182982174), `next build && next start -p 3200` with the same
+Setup: a Postgres database seeded with a superadmin account, `next build && next start -p 3200` with the same
 `DATABASE_URL`, and the env vars `BASE` (default `http://localhost:3200`) and `PW` (the seeded password).
 `e2e/localclean.sh` clears local sessions/devices so the per-user device limit (default 6) is never hit; edit its connection string for your DB.
 Run from `next-app/`.

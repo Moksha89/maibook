@@ -14,3 +14,17 @@
 
 ## Branding
 The product name comes from Settings → Branding (`site.branding.title`), defaulting to **Maibook**.
+
+## Deploy
+
+Keep the application in the `next-app` directory. A typical production update is:
+
+1. Install dependencies in `next-app`.
+2. Generate the Prisma client and apply database migrations.
+3. Build the Next.js application.
+4. Restart the web process and the background worker, pointed at the new build.
+
+Store environment variables outside the repository (for example in a file readable only by the app user). Do not commit database dumps, credentials, or `.env` files.
+
+The WhatsApp bridge, if used, is a separate process started from `whatsapp-bridge/`. Delivery stays disabled until the relevant environment flags and tokens are set.
+

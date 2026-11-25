@@ -1,33 +1,23 @@
-# iBook Rebuild Project Specification
+# Maibook product specification
 
 ## 1. Product definition
 
-iBook is a multi-company financial ledger and settlement platform. It manages companies, agents, IDs, settlements, uplines, shareholders, users, reports, WhatsApp delivery, backups, and audit history in one system.
+Maibook is a multi-company financial ledger and settlement platform. It manages companies, agents, IDs, settlements, uplines, shareholders, partners, users, reports, WhatsApp delivery, backups, and audit history in one system.
 
-The rebuild will preserve the business behavior recovered from Maibook, mibook.dev, MyBook.you, and iBook.you. The new implementation will use Next.js, React, TypeScript, Prisma, and PostgreSQL.
-
-The Laravel application, copied database, historical Devin conversations, screenshots, audit reports, and recovered Git branches are the reference set. The original June server source is unavailable, so some June features will be recreated from observed behavior rather than copied source.
+The application is built with Next.js, React, TypeScript, Prisma, and PostgreSQL.
 
 ## 2. Product goals
 
-1. Recreate every recoverable feature from the June iBook.you build.
-2. Preserve the financial calculations and historical data.
-3. Replace the Laravel and MySQL implementation with a typed Next.js and PostgreSQL system.
-4. Provide consistent desktop, tablet, mobile, print, and PDF experiences.
-5. Keep sensitive operations permission-controlled and fully audited.
-6. Support both the web application and a versioned API.
-7. Keep production messaging isolated during migration and testing.
+1. Provide a complete ledger and settlement workflow for companies, agents, and partners.
+2. Preserve financial calculations and historical settlement data.
+3. Give a consistent experience on desktop, tablet, mobile, print, and PDF.
+4. Keep sensitive operations permission-controlled and fully audited.
+5. Support both the web application and a versioned API.
+6. Keep production messaging isolated until it is explicitly enabled.
 
-## 3. Evidence and decision status
+## 3. Documentation status
 
-| Status | Meaning |
-|---|---|
-| Recovered | Present in the restored repository or copied database |
-| Historical | Confirmed by old implementation messages, screenshots, or audit reports |
-| Recreated | Must be implemented from the confirmed behavior because the June source is unavailable |
-| Modernized | New technical implementation selected for the rebuild |
-
-Every acceptance test will identify the evidence used for the expected behavior.
+Feature descriptions in this document are the intended product behavior. Where a section describes a planned enhancement, treat it as a requirement for the product, not as a record of a particular release.
 
 ## 4. Users and access model
 
@@ -133,7 +123,7 @@ Every acceptance test will identify the evidence used for the expected behavior.
 
 #### Login
 
-- iBook branding and logo.
+- Maibook branding and logo.
 - One identity field accepting username, email, or phone.
 - Password visibility control.
 - Forgot-password flow.
@@ -618,10 +608,10 @@ flowchart LR
 
 ## 15. Decisions requiring confirmation
 
-1. Final public brand name and logo. Historical names include Maibook, mibook.dev, MyBook.you, and iBook.you.
+1. Final public brand name and logo, configured in Settings.
 2. Whether Owners and Business Partners remain separate modules permanently.
 3. ~~Exact Agent-type and Sub Agent-type posting direction for every settlement sign case.~~ Decided 24 Nov 2026, see 7.8.
 4. Whether Database Management should remain available in the production UI.
 5. The preferred deployment platform and object storage provider.
 
-The rebuild can begin with conservative defaults while these five decisions remain configurable.
+Conservative defaults can be used while these five decisions remain configurable.
