@@ -9,11 +9,12 @@ const dev = process.env.NODE_ENV !== "production";
 // everything else is locked to this origin. Report previews use same-origin and blob: frames.
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
+  // Cloudflare (in front of maibook.co) injects its Web Analytics beacon.
+  `script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com${dev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  `connect-src 'self'${dev ? " ws: wss:" : ""}`,
+  `connect-src 'self' https://cloudflareinsights.com${dev ? " ws: wss:" : ""}`,
   "frame-src 'self' blob:",
   "worker-src 'self' blob:",
   "object-src 'none'",
