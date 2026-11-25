@@ -73,8 +73,8 @@ describe("financial calculations", () => {
 /** Mirrors what postSettlement stores: shares are magnitudes, the settlement amount carries the sign. */
 function settle(amount: number, type: "AGENT" | "SUB_AGENT", configured: number, upline = 0) {
   const applied = effectiveAgentPercentage(type, configured);
-  const result = calculateSettlement(amount, applied, upline);
-  return { amount, absoluteAmount: result.absoluteAmount, agentShare: result.agentShare, uplineShare: result.uplineShare, companyShare: result.companyShare, signedAgent: signedSettlementShare(amount, result.agentShare), signedCompanyProfit: signedSettlementShare(amount, result.companyProfit) };
+  const result = calculateSettlement(amount, applied, upline, type);
+  return { amount, absoluteAmount: result.absoluteAmount, agentShare: result.agentShare, uplineShare: result.uplineShare, companyShare: result.companyShare, signedAgent: signedSettlementShare(amount, result.agentShare), payableUpline: payableShare(amount, result.uplineShare), signedCompanyProfit: signedSettlementShare(amount, result.companyProfit) };
 }
 
 describe("agent and sub agent settlement rules", () => {
@@ -87,7 +87,47 @@ describe("agent and sub agent settlement rules", () => {
     expect(effectiveAgentPercentage("SUB_AGENT", 80).toString()).toBe("20");
     expect(settle(100, "SUB_AGENT", 80).signedAgent.toString()).toBe("20");
     expect(settle(-100, "SUB_AGENT", 80).signedAgent.toString()).toBe("-20");
-    expect(settle(100, "SUB_AGENT", 80).companyShare.toString()).toBe("80");
+    expect(settle(100, "SUB_AGENT", 80).companyShare.toString()).toBe("20");
+  });
+
+  it("worked example: +100,000 SubAgent 80% with 17% upline gives +20,000 agent, -17,000 upline, +3,000 profit (mirrored for -100,000)", () => {
+    const gain = settle(100000, "SUB_AGENT", 80, 17);
+    expect(gain.signedAgent.toString()).toBe("20000");
+    expect(gain.payableUpline.toString()).toBe("-17000");
+    expect(gain.signedCompanyProfit.toString()).toBe("3000");
+    const gainSum = summarizeSettlementProfit([gain]);
+    expect(gainSum.companyProfit.toString()).toBe("3000");
+    const gainSplit = allocateShareholderProfit(gainSum.companyProfit, [{ shareholderId: "a", percentage: 60 }, { shareholderId: "b", percentage: 40 }]);
+    expect(gainSplit.map((item) => item.amount.neg().toString())).toEqual(["-1800", "-1200"]);
+
+    const loss = settle(-100000, "SUB_AGENT", 80, 17);
+    expect(loss.signedAgent.toString()).toBe("-20000");
+    expect(loss.payableUpline.toString()).toBe("17000");
+    expect(loss.signedCompanyProfit.toString()).toBe("-3000");
+    const lossSum = summarizeSettlementProfit([loss]);
+    expect(lossSum.companyProfit.toString()).toBe("-3000");
+    const lossSplit = allocateShareholderProfit(lossSum.companyProfit, [{ shareholderId: "a", percentage: 60 }, { shareholderId: "b", percentage: 40 }]);
+    expect(lossSplit.map((item) => item.amount.neg().toString())).toEqual(["1800", "1200"]);
+  });
+
+  it("normal AGENT 30% and SUB_AGENT 80%/85% with 20%/17% upline at +-100,000", () => {
+    const normalGain = settle(100000, "AGENT", 30, 20);
+    expect(normalGain.signedAgent.toString()).toBe("30000");
+    expect(normalGain.payableUpline.toString()).toBe("-20000");
+    expect(normalGain.signedCompanyProfit.toString()).toBe("50000");
+    const normalLoss = settle(-100000, "AGENT", 30, 20);
+    expect(normalLoss.signedAgent.toString()).toBe("-30000");
+    expect(normalLoss.payableUpline.toString()).toBe("20000");
+    expect(normalLoss.signedCompanyProfit.toString()).toBe("-50000");
+
+    const breakEven = settle(100000, "SUB_AGENT", 80, 20);
+    expect(breakEven.signedCompanyProfit.toString()).toBe("0");
+    const subLossOnGain = settle(100000, "SUB_AGENT", 85, 17);
+    expect(subLossOnGain.signedCompanyProfit.toString()).toBe("-2000");
+    expect(summarizeSettlementProfit([subLossOnGain]).companyProfit.toString()).toBe("-2000");
+    const subGainOnLoss = settle(-100000, "SUB_AGENT", 85, 17);
+    expect(subGainOnLoss.signedCompanyProfit.toString()).toBe("2000");
+    expect(summarizeSettlementProfit([subGainOnLoss]).companyProfit.toString()).toBe("2000");
   });
 
   it("SubAgent ID at 0% posts everything to the agent and at 100% posts nothing", () => {
@@ -133,8 +173,8 @@ describe("signed profit distribution", () => {
   });
 
   it("SubAgent settlements use the remainder for the agent and follow the sign", () => {
-    expect(summarizeSettlementProfit([row(100, "SUB_AGENT", 80)]).companyProfit.toString()).toBe("80");
-    expect(summarizeSettlementProfit([row(-100, "SUB_AGENT", 80)]).companyProfit.toString()).toBe("-80");
+    expect(summarizeSettlementProfit([row(100, "SUB_AGENT", 80)]).companyProfit.toString()).toBe("20");
+    expect(summarizeSettlementProfit([row(-100, "SUB_AGENT", 80)]).companyProfit.toString()).toBe("-20");
     expect(summarizeSettlementProfit([row(-100, "SUB_AGENT", 80)]).agentShare.toString()).toBe("-20");
   });
 });

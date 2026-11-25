@@ -71,7 +71,7 @@ export function settlementSign(amount: DecimalInput) {
 }
 
 export function signedSettlementShare(amount: DecimalInput, share: DecimalInput) {
-  return decimal(share).abs().mul(settlementSign(amount));
+  return decimal(share).mul(settlementSign(amount));
 }
 
 /** Payable to an upline or partner: negative when the company owes them (a profit settlement), positive when they owe the company (a loss). */
@@ -80,33 +80,50 @@ export function payableShare(amount: DecimalInput, share: DecimalInput) {
 }
 
 /** Signed totals for a set of posted settlements: losses reduce profit. */
-export function summarizeSettlementProfit(rows: { amount: DecimalInput; absoluteAmount: DecimalInput; agentShare: DecimalInput; uplineShare: DecimalInput }[]) {
+export function summarizeSettlementProfit(
+  rows: { amount: DecimalInput; absoluteAmount: DecimalInput; agentShare: DecimalInput; uplineShare: DecimalInput; companyShare?: DecimalInput }[],
+) {
   let total = decimal(0);
   let agentShare = decimal(0);
   let uplineShare = decimal(0);
+  let companyProfit = decimal(0);
   for (const row of rows) {
-    total = total.add(signedSettlementShare(row.amount, row.absoluteAmount));
-    agentShare = agentShare.add(signedSettlementShare(row.amount, row.agentShare));
-    uplineShare = uplineShare.add(signedSettlementShare(row.amount, row.uplineShare));
+    const signedTotal = signedSettlementShare(row.amount, row.absoluteAmount);
+    const signedAgent = signedSettlementShare(row.amount, row.agentShare);
+    const signedUpline = signedSettlementShare(row.amount, row.uplineShare);
+    total = total.add(signedTotal);
+    agentShare = agentShare.add(signedAgent);
+    uplineShare = uplineShare.add(signedUpline);
+    companyProfit = companyProfit.add(
+      row.companyShare !== undefined
+        ? signedSettlementShare(row.amount, row.companyShare)
+        : signedTotal.sub(signedAgent).sub(signedUpline),
+    );
   }
-  return { totalSettlements: total, agentShare, uplineShare, companyProfit: total.sub(agentShare).sub(uplineShare) };
+  return { totalSettlements: total, agentShare, uplineShare, companyProfit };
 }
 
 export function calculateSettlement(
   amount: DecimalInput,
   agentPercentage: DecimalInput,
   uplinePercentage: DecimalInput = 0,
+  type: "AGENT" | "SUB_AGENT" = "AGENT",
 ): SettlementCalculation {
   const absoluteAmount = decimal(amount).abs().toDecimalPlaces(8);
   const agentRate = assertPercentage(agentPercentage, "Agent percentage");
   const uplineRate = assertPercentage(uplinePercentage, "Upline percentage");
-  // 1) Upline share = settlement × site upline %. 2) Agent commission = settlement × agent %. 3) Company keeps the remainder.
+  // 1) Upline share = settlement × site upline %. 2) Agent share = settlement × applied %.
+  // 3) For normal AGENT IDs, company keeps settlement - upline - agent.
+  //    For SUB_AGENT IDs, the sub-agent keeps configured % and pays the company the remaining applied % (agentShare),
+  //    and the company pays upline % out of that, so company profit = agentShare - uplineShare.
   const uplineShare = absoluteAmount.mul(uplineRate).div(100).toDecimalPlaces(8);
   const agentShare = absoluteAmount.mul(agentRate).div(100).toDecimalPlaces(8);
-  const companyProfit = absoluteAmount.sub(uplineShare).sub(agentShare);
+  const companyProfit = type === "SUB_AGENT"
+    ? agentShare.sub(uplineShare)
+    : absoluteAmount.sub(uplineShare).sub(agentShare);
   const companyShare = companyProfit;
 
-  if (companyProfit.lt(0)) {
+  if (type === "AGENT" && companyProfit.lt(0)) {
     throw new Error("Upline share and agent commission cannot exceed the settlement amount.");
   }
 

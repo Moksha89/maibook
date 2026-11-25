@@ -13,5 +13,5 @@ export async function signedSettlementTotals(where: Prisma.SettlementWhereInput)
     db.settlement.aggregate({ where: { ...where, status: "POSTED", amount: { lt: 0 } }, _count: true, _sum: select }),
   ]);
   const net = (key: keyof typeof select) => zero(gains._sum[key]) - zero(losses._sum[key]);
-  return { count: gains._count + losses._count, amount: net("amount"), agentShare: net("agentShare"), uplineShare: net("uplineShare"), companyShare: net("companyShare") };
+  return { count: gains._count + losses._count, amount: net("amount"), agentShare: net("agentShare"), uplineShare: -net("uplineShare") || 0, companyShare: net("companyShare") };
 }

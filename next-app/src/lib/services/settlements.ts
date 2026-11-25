@@ -52,9 +52,8 @@ export async function postSettlement(input: PostSettlementInput) {
       const appliedAgentPercentage = effectiveAgentPercentage(identifier.type, identifier.percentageRate.toString());
       // The upline share comes from the ID's site upline %; an ID without a site falls back to the chosen upline's %.
       const uplinePercentage = identifier.site ? decimal(identifier.site.uplinePercentage.toString()) : decimal(upline?.percentageRate.toString() ?? 0);
-      const calculation = calculateSettlement(amount, appliedAgentPercentage, uplinePercentage);
+      const calculation = calculateSettlement(amount, appliedAgentPercentage, uplinePercentage, identifier.type);
       const direction = amount.isNegative() ? -1 : 1;
-      const signedAgentShare = calculation.agentShare.mul(direction);
       // Payable convention (same as the agent ledger): a profit settlement stores a negative upline amount — the company owes them.
       const signedUplineShare = payableShare(amount, calculation.uplineShare);
       const signedCompanyProfit = calculation.companyProfit.mul(direction);

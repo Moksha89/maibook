@@ -39,16 +39,19 @@ export function SettlementFormBody({ companies, initialIdempotencyKey }: { compa
   const amount = Number(amountText);
   const ready = Boolean(identifier) && Number.isFinite(amount) && amount !== 0;
 
+  const isSubAgent = identifier?.type === "SUB_AGENT";
   const configured = Number(identifier?.percentageRate ?? 0);
-  const applied = identifier?.type === "SUB_AGENT" ? 100 - configured : configured;
+  const applied = isSubAgent ? 100 - configured : configured;
   const sign = amount < 0 ? -1 : 1;
   const absolute = Math.abs(amount || 0);
-  const agentShare = round(round(absolute * applied / 100) * sign);
+  const agentMag = round(absolute * applied / 100);
+  const agentShare = round(agentMag * sign);
   const uplinePercent = identifier?.sitePercentage != null ? Number(identifier.sitePercentage) : Number(upline?.percentageRate ?? 0);
-  const uplineShare = round(round(absolute * uplinePercent / 100) * -sign);
-  const companyShare = round(absolute * sign - uplineShare - agentShare);
+  const uplineMag = round(absolute * uplinePercent / 100);
+  const uplineShare = round(uplineMag * -sign);
+  const companyShare = round((isSubAgent ? agentMag - uplineMag : absolute - uplineMag - agentMag) * sign);
   const agentBalance = Number(identifier?.agentBalance ?? 0);
-  const agentEntry = identifier?.type === "SUB_AGENT" ? agentShare : -agentShare;
+  const agentEntry = isSubAgent ? agentShare : -agentShare;
   const balanceAfter = round(agentBalance + agentEntry);
   const now = owes(agentEntry);
   const after = owes(balanceAfter);

@@ -24,7 +24,7 @@ export async function distributeCompanyProfit(input: DistributeProfitInput) {
     const [settlements, shareholders] = await Promise.all([
       tx.settlement.findMany({
         where: { companyId: input.companyId, status: "POSTED", settlementDate: { gte: input.periodStart, lte: input.periodEnd } },
-        select: { id: true, amount: true, absoluteAmount: true, agentShare: true, uplineShare: true, profitDistributedAt: true },
+        select: { id: true, amount: true, absoluteAmount: true, agentShare: true, uplineShare: true, companyShare: true, profitDistributedAt: true },
       }),
       tx.shareholder.findMany({ where: { companyId: input.companyId, status: "ACTIVE", deletedAt: null }, orderBy: { name: "asc" } }),
     ]);
