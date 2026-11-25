@@ -111,7 +111,7 @@ export async function restoreIdentifierAction(_: ActionState, formData: FormData
   if (existing.company?.deletedAt) return { status: "error", message: `Restore company ${existing.company.name} first.` };
   if (existing.agent?.deletedAt) return { status: "error", message: `Restore agent ${existing.agent.name} first.` };
   const normalizedValue = stripDeletedSuffix(existing.normalizedValue);
-  const clash = await db.agentIdentifier.findFirst({ where: { id: { not: existing.id }, companyId: existing.companyId, normalizedValue }, select: { value: true } });
+  const clash = await db.agentIdentifier.findFirst({ where: { id: { not: existing.id }, siteId: existing.siteId, normalizedValue, deletedAt: null }, select: { value: true } });
   if (clash) return { status: "error", message: `An ID ${clash.value} already uses this value in the same company. Rename the other ID first.` };
   try {
     await db.$transaction([

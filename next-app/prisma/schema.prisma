@@ -491,7 +491,7 @@ model AgentIdentifier {
   site            Site?          @relation(fields: [siteId], references: [id], onDelete: SetNull)
   settlements     Settlement[]
 
-  @@unique([companyId, normalizedValue])
+  @@unique([siteId, normalizedValue])
   @@index([agentId, status])
   @@index([siteId])
   @@map("agent_ids")

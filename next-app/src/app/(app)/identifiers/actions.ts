@@ -28,14 +28,14 @@ export async function createIdentifierAction(_: ActionState, formData: FormData)
   const assigned = parsed.data.agentId && companyId ? await db.companyAgent.findUnique({ where: { companyId_agentId: { companyId, agentId: parsed.data.agentId } } }) : null;
   if (parsed.data.agentId && (!assigned || assigned.removedAt)) return { status: "error", message: "The selected agent is not linked to this company." };
   const normalizedValue = normalizeName(parsed.data.value);
-  if (!companyId && await db.agentIdentifier.findFirst({ where: { companyId: null, normalizedValue, deletedAt: null }, select: { id: true } })) return { status: "error", message: "This ID already exists." };
+  if (await db.agentIdentifier.findFirst({ where: { siteId: site.id, normalizedValue, deletedAt: null }, select: { id: true } })) return { status: "error", message: "This ID already exists on this site." };
   try {
     const identifier = await db.agentIdentifier.create({ data: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate, companyId, agentId: parsed.data.agentId ?? null, siteId: site.id, normalizedValue } });
     await db.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.create", entityType: "AgentIdentifier", entityId: identifier.id, requestId: randomUUID(), newValues: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate } } });
     revalidatePath("/", "layout");
     return { status: "success", message: `${parsed.data.value} was created.` };
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "This ID already exists in the selected company." };
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "This ID already exists on this site." };
     throw error;
   }
 }
@@ -63,7 +63,7 @@ export async function updateIdentifierAction(_: ActionState, formData: FormData)
   try {
     await db.agentIdentifier.update({ where: { id: existing.id }, data: { ...(linkCompanyId ? { companyId: linkCompanyId } : {}), ...(linkAgentId ? { agentId: linkAgentId } : {}), value: parsed.data.value, normalizedValue: normalizeName(parsed.data.value), type: parsed.data.type, percentageRate: parsed.data.percentageRate } });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "This ID already exists in the selected company." };
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "This ID already exists on this site." };
     throw error;
   }
   await db.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.update", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { value: existing.value, type: existing.type, percentageRate: existing.percentageRate.toString() }, newValues: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate } } });
