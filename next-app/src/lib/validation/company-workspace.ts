@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { money, upperName, optionalEmail, optionalPhone, pastOrToday, percent, SUM_TOLERANCE } from "./common";
+import { money, upperName, optionalEmail, optionalPhone, pastOrToday, percent } from "./common";
 
 export const uplineSchema = z.object({
   companyId: z.string().uuid(),
@@ -31,8 +31,5 @@ export const profitDistributionSchema = z.object({
 }).refine((value) => value.periodStart <= value.periodEnd, { path: ["periodEnd"], message: "The end date cannot be before the start date." });
 
 export const uplineGroupSchema = z.object({
-  companyId: z.string().uuid(),
-  name: upperName(),
-  uplineIds: z.array(z.string().uuid()),
-  percentages: z.array(percent("Member percentage", { positive: true })),
-}).refine((value) => value.uplineIds.length === value.percentages.length, "Every member requires a percentage.").refine((value) => !value.percentages.length || Math.abs(value.percentages.reduce((sum, percentage) => sum + percentage, 0) - 100) <= SUM_TOLERANCE, "Member percentages must add up to exactly 100%.");
+  name: upperName("Group name"),
+});

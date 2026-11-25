@@ -25,14 +25,13 @@ export function UplineForm(props: Parameters<typeof UplineFormBody>[0]) {
   return <FormModal trigger="Add upline" title="Add upline"><UplineFormBody {...props} /></FormModal>;
 }
 
-export function UplineGroupFormBody({ companyId, uplines, group, companies }: { companyId: string; uplines: { id: string; name: string }[]; companies?: { id: string; name: string }[]; group?: { id: string; name: string; members: { uplineId: string; percentage: string }[] } }) {
+export function UplineGroupFormBody({ group }: { group?: { id: string; name: string } }) {
   const [state, action, pending] = useModalAction(group ? updateUplineGroupAction : createUplineGroupAction, {} as ActionState);
-  const memberOf = (id: string) => group?.members.find((member) => member.uplineId === id);
-  return <form action={action} className="text-xs">{companies && companies.length > 1 ? <label className={`${modalLabel} mb-2`}>Company<Select name="companyId" defaultValue={companyId} required className={modalField}>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</Select></label> : <input type="hidden" name="companyId" value={companyId} />}{group ? <input type="hidden" name="groupId" value={group.id} /> : null}<label className={modalLabel}>Group name<Input uppercase name="name" defaultValue={group?.name} required autoFocus={!(companies && companies.length > 1)} className={modalField} /></label>{uplines.length ? <div className="mt-2 grid max-h-64 gap-1 overflow-y-auto sm:grid-cols-2">{uplines.map((upline) => <label key={upline.id} className="grid grid-cols-[auto_1fr_90px] items-center gap-2 rounded border px-2 py-1 text-xs"><input type="checkbox" name="uplineIds" value={upline.id} defaultChecked={Boolean(memberOf(upline.id))} /><span>{upline.name}</span><Input name={`percentage-${upline.id}`} type="number" min="0.0001" max="100" step="0.0001" placeholder="%" defaultValue={memberOf(upline.id)?.percentage} /></label>)}</div> : null}<Feedback state={state} /><FormFooter className="!mt-2"><Button type="submit" size="sm" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}{group ? "Save changes" : "Create"}</Button></FormFooter></form>;
+  return <form action={action} className="text-xs">{group ? <input type="hidden" name="groupId" value={group.id} /> : null}<label className={modalLabel}>Group name<Input uppercase name="name" defaultValue={group?.name} required autoFocus className={modalField} /></label><Feedback state={state} /><FormFooter className="!mt-2"><Button type="submit" size="sm" disabled={pending}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : null}{group ? "Save changes" : "Create"}</Button></FormFooter></form>;
 }
 
-export function UplineGroupForm({ companyId, uplines }: { companyId: string; uplines: { id: string; name: string }[] }) {
-  return <FormModal compact trigger="Add group" title="Create upline group" size={uplines.length ? "xl" : "sm"}><UplineGroupFormBody companyId={companyId} uplines={uplines} /></FormModal>;
+export function UplineGroupForm() {
+  return <FormModal compact size="sm" trigger="Add group" title="Create upline group"><UplineGroupFormBody /></FormModal>;
 }
 
 function ManualUplineEntryFormBody({ companyId, uplines }: { companyId: string; uplines: { id: string; name: string }[] }) {

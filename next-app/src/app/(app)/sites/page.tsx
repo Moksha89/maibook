@@ -3,8 +3,7 @@ import Link from "next/link";
 import { ActionButton } from "@/components/ui/action-button";
 import { FormModal } from "@/components/ui/form-modal";
 import { PageHeader } from "@/components/ui/page-header";
-import { hasPermission, requirePermission } from "@/lib/auth/permissions";
-import { requireSession } from "@/lib/auth/session";
+import { accessibleCompanyIds, hasPermission, requirePermission, siteAccessWhere, groupAccessWhere } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import { deleteSiteAction } from "./actions";
 import { AssignSiteGroupBody, SiteFormBody } from "./site-forms";
@@ -12,17 +11,14 @@ import { stamp } from "@/lib/format";
 
 export default async function SitesPage() {
   await requirePermission("uplines.read");
-  const session = await requireSession();
-  const superAdmin = session.user.roles.some(({ role }) => role.key === "superadmin");
-  const access = superAdmin ? {} : { userAccess: { some: { userId: session.userId } } };
+  const companyIds = await accessibleCompanyIds();
   const [canCreate, canEdit, canDelete, sites, groups] = await Promise.all([
     hasPermission("uplines.create"), hasPermission("uplines.update"), hasPermission("uplines.delete"),
-    db.site.findMany({ where: superAdmin ? {} : { OR: [{ uplineGroupId: null }, { uplineGroup: { company: { deletedAt: null, ...access } } }] }, include: { uplineGroup: { select: { id: true, name: true, company: { select: { name: true } } } } }, orderBy: { name: "asc" } }),
-    db.uplineGroup.findMany({ where: { company: { deletedAt: null, ...access } }, select: { id: true, name: true, company: { select: { name: true } } }, orderBy: { name: "asc" } }),
+    db.site.findMany({ where: siteAccessWhere(companyIds), include: { uplineGroup: { select: { id: true, name: true } } }, orderBy: { name: "asc" } }),
+    db.uplineGroup.findMany({ where: groupAccessWhere(companyIds), select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
-  const multiCompany = new Set(groups.map((group) => group.company.name)).size > 1;
-  const groupLabel = (group: { name: string; company: { name: string } }) => multiCompany ? `${group.name} (${group.company.name})` : group.name;
-  const groupOptions = groups.map((group) => ({ id: group.id, label: groupLabel(group) }));
+  const groupOptions = groups.map((group) => ({ id: group.id, label: group.name }));
+  const groupLabel = (group: { name: string }) => group.name;
   const showActions = canEdit || canDelete;
   return <>
     <PageHeader title="Sites" actions={canCreate ? <FormModal size="sm" trigger="Add site" title="Create site"><SiteFormBody groups={groupOptions} /></FormModal> : null} />

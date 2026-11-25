@@ -45,3 +45,19 @@ export const accessibleCompanyIds = cache(async function accessibleCompanyIds():
   const rows = await db.companyAccess.findMany({ where: { userId: session.userId }, select: { companyId: true } });
   return rows.map(({ companyId }) => companyId);
 });
+
+/** Company-less groups are visible to anyone with the page permission; company-tied groups follow company grants. `null` companyIds means SuperAdmin (everything). */
+export function groupAccessWhere(companyIds: string[] | null) {
+  if (companyIds === null) return {};
+  return { OR: [{ companyId: null }, { company: { deletedAt: null, id: { in: companyIds } } }] };
+}
+
+export function siteAccessWhere(companyIds: string[] | null) {
+  if (companyIds === null) return {};
+  return { OR: [{ uplineGroupId: null }, { uplineGroup: groupAccessWhere(companyIds) }] };
+}
+
+export async function requireGroupAccess(companyId: string | null, required: "READ" | "FULL" = "READ") {
+  if (!companyId) return;
+  await requireCompanyAccess(companyId, required);
+}

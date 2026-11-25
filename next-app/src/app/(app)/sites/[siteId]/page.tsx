@@ -8,8 +8,7 @@ import { LinkButton } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Tabs } from "@/components/ui/tabs";
-import { requirePermission } from "@/lib/auth/permissions";
-import { requireSession } from "@/lib/auth/session";
+import { accessibleCompanyIds, requirePermission, siteAccessWhere } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import { signedSettlementShare as signedShare } from "@/lib/domain/finance";
 import { balanceTone, dayStamp, stamp, whole } from "@/lib/format";
@@ -30,16 +29,14 @@ export default async function SitePage({ params, searchParams }: { params: Promi
   if (!UUID.test(siteId)) notFound();
   const requested = (await searchParams).tab;
   const tab: Tab = TABS.includes(requested as Tab) ? requested as Tab : "ids";
-  const session = await requireSession();
-  const superAdmin = session.user.roles.some(({ role }) => role.key === "superadmin");
-  const accessFilter = superAdmin ? {} : { userAccess: { some: { userId: session.userId } } };
+  const companyIds = await accessibleCompanyIds();
   const site = await db.site.findFirst({
-    where: { id: siteId, ...(superAdmin ? {} : { OR: [{ uplineGroupId: null }, { uplineGroup: { company: accessFilter } }] }) },
-    include: { uplineGroup: { select: { id: true, name: true, company: { select: { name: true } } } } },
+    where: { id: siteId, ...siteAccessWhere(companyIds) },
+    include: { uplineGroup: { select: { id: true, name: true } } },
   });
   if (!site) notFound();
   const identifiers = await db.agentIdentifier.findMany({
-    where: { siteId, deletedAt: null, ...(superAdmin ? {} : { OR: [{ company: accessFilter }, { companyId: null }] }) },
+    where: { siteId, deletedAt: null, ...(companyIds === null ? {} : { OR: [{ companyId: { in: companyIds } }, { companyId: null }] }) },
     include: { company: { select: { name: true } }, agent: { select: { name: true } } },
     orderBy: { value: "asc" },
   });

@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { ActionButton } from "@/components/ui/action-button";
 import { FormModal } from "@/components/ui/form-modal";
 import { PageHeader } from "@/components/ui/page-header";
-import { hasPermission, requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
+import { hasPermission, requireGroupAccess, requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import { dayStamp, whole } from "@/lib/format";
 import { assignSiteGroupAction } from "../../sites/actions";
@@ -20,10 +20,9 @@ export default async function UplineGroupPage({ params, searchParams }: { params
   await requirePermission("uplines.read");
   const { groupId } = await params;
   if (!isUuid(groupId)) notFound();
-  if (!/^[0-9a-f-]{36}$/i.test(groupId)) notFound();
-  const group = await db.uplineGroup.findUnique({ where: { id: groupId }, include: { company: { select: { name: true } }, members: { include: { upline: { select: { name: true } } } }, sites: { orderBy: { name: "asc" } } } });
+  const group = await db.uplineGroup.findUnique({ where: { id: groupId }, include: { members: { include: { upline: { select: { name: true } } } }, sites: { orderBy: { name: "asc" } } } });
   if (!group) notFound();
-  await requireCompanyAccess(group.companyId);
+  await requireGroupAccess(group.companyId);
   const [canCreate, canEdit, unassigned] = await Promise.all([
     hasPermission("uplines.create"), hasPermission("uplines.update"),
     db.site.findMany({ where: { uplineGroupId: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -40,16 +39,15 @@ export default async function UplineGroupPage({ params, searchParams }: { params
       {canEdit ? <FormModal size="sm" trigger="Assign site" title={`Assign site to ${group.name}`}><AssignSiteToGroupBody groupId={group.id} sites={unassigned} /></FormModal> : null}
       {canCreate ? <FormModal size="sm" trigger="Create site" title="Create site"><SiteFormBody groupId={group.id} /></FormModal> : null}
     </div>} />
-    <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+    <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-3">
       <Stat label="Sites" value={String(group.sites.length)} />
       <Stat label="Average upline %" value={`${avgPct.toFixed(2)}%`} />
       <Stat label="Upline earned" value={whole(earned)} />
-      <Stat label="Company" value={group.company.name} />
     </div>
     <div className="mb-2 flex gap-2"><Link prefetch={false} href={`/upline-groups/${group.id}`} className={tabClass(tab === "sites")}>Sites ({group.sites.length})</Link><Link prefetch={false} href={`/upline-groups/${group.id}?tab=entries`} className={tabClass(tab === "entries")}>Entries ({entries.length})</Link></div>
     {tab === "entries" ? <section className="overflow-hidden rounded-lg border bg-white"><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs">
       <thead className="bg-[#ffeebb] text-[#152235]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">ID</th><th className="px-3 py-2">Site</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">Agent</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Upline %</th><th className="px-3 py-2 text-right">Upline share</th></tr></thead>
-      <tbody>{entries.map((row) => <tr key={row.id} className={`cursor-default border-t border-white hover:brightness-95 ${Number(row.amount) < 0 ? "bg-[#f8d7da]" : "bg-[#fff3cd]"}`}><td className="whitespace-nowrap px-3 py-2">{dayStamp(row.settlementDate, row.createdAt)}</td><td className="whitespace-nowrap px-3 py-2 font-semibold">{row.identifier.value}</td><td className="px-3 py-2">{row.identifier.site?.name ?? "-"}</td><td className="px-3 py-2">{row.company.name}</td><td className="px-3 py-2">{row.agent.name}</td><td className="px-3 py-2 text-right font-mono">{whole(row.amount)}</td><td className="px-3 py-2 text-right font-mono">{row.uplinePercentage.toFixed(2)}%</td><td className="px-3 py-2 text-right font-mono font-semibold">{whole(signed(row.amount, row.uplineShare))}</td></tr>)}</tbody>
+      <tbody>{entries.map((row) => <tr key={row.id} className={`cursor-default border-t border-white hover:brightness-95 ${Number(row.amount) < 0 ? "bg-[#f8d7da]" : "bg-[#fff3cd]"}`}><td className="whitespace-nowrap px-3 py-2">{dayStamp(row.settlementDate, row.createdAt)}</td><td className="px-3 py-2 font-semibold">{row.identifier.value}</td><td className="px-3 py-2">{row.identifier.site?.name ?? "-"}</td><td className="px-3 py-2">{row.company.name}</td><td className="px-3 py-2">{row.agent.name}</td><td className="px-3 py-2 text-right font-mono">{whole(row.amount)}</td><td className="px-3 py-2 text-right font-mono">{row.uplinePercentage.toFixed(2)}%</td><td className="px-3 py-2 text-right font-mono font-semibold">{whole(signed(row.amount, row.uplineShare))}</td></tr>)}</tbody>
     </table></div>{!entries.length ? <p className="px-3 py-8 text-center text-xs text-[#647386]">No settlements yet.</p> : null}</section> : null}
     {tab === "sites" ? <section className="overflow-hidden rounded-lg border bg-white"><div className="overflow-x-auto"><table className="w-full min-w-[420px] text-left text-xs">
       <thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2">Site</th><th className="px-3 py-2">Upline %</th>{canEdit ? <th className="px-3 py-2 text-right">Actions</th> : null}</tr></thead>

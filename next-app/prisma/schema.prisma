@@ -552,16 +552,16 @@ model Upline {
 
 model UplineGroup {
   id             String              @id @default(uuid()) @db.Uuid
-  companyId      String              @map("company_id") @db.Uuid
+  companyId      String?             @map("company_id") @db.Uuid
   name           String
   normalizedName String              @map("normalized_name")
   createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company        Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company        Company?            @relation(fields: [companyId], references: [id], onDelete: Restrict)
   members        UplineGroupMember[]
   sites          Site[]
 
-  @@unique([companyId, normalizedName])
+  @@unique([normalizedName])
   @@map("upline_groups")
 }
 

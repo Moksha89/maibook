@@ -6,7 +6,7 @@ import { forbidden } from "next/navigation";
 import { z } from "zod";
 
 import type { ActionState } from "@/lib/actions/types";
-import { accessibleCompanyIds, requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
+import { accessibleCompanyIds, requireGroupAccess, requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import { normalizeName } from "@/lib/domain/normalization";
 
@@ -22,13 +22,13 @@ function refresh(groupIds: (string | null | undefined)[] = [], siteId?: string) 
 }
 
 /**
- * A site assigned to an upline group belongs to that group's company, so changing it needs FULL access there.
- * An unassigned site is shared; a scoped user may only change it when none of its IDs sit in a company they cannot access.
+ * A site assigned to a company-tied upline group needs FULL access to that company.
+ * A site in a company-less group, or an unassigned site, is shared; a scoped user may only change it when none of its IDs sit in a company they cannot access.
  */
 async function requireSiteAccess(site: { id: string; uplineGroupId: string | null }) {
   if (site.uplineGroupId) {
     const group = await db.uplineGroup.findUnique({ where: { id: site.uplineGroupId }, select: { companyId: true } });
-    if (group) { await requireCompanyAccess(group.companyId, "FULL"); return; }
+    if (group?.companyId) { await requireGroupAccess(group.companyId, "FULL"); return; }
   }
   const companyIds = await accessibleCompanyIds();
   if (companyIds === null) return;
@@ -48,7 +48,7 @@ export async function createSiteAction(_: ActionState, formData: FormData): Prom
   if (groupId) {
     const group = await db.uplineGroup.findUnique({ where: { id: groupId } });
     if (!group) return { status: "error", message: "This upline group no longer exists." };
-    await requireCompanyAccess(group.companyId, "FULL");
+    await requireGroupAccess(group.companyId, "FULL");
   }
   try {
     const created = await db.site.create({ data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), uplinePercentage: parsed.data.uplinePercentage, uplineGroupId: groupId } });
@@ -68,7 +68,7 @@ export async function updateSiteAction(_: ActionState, formData: FormData): Prom
   if (groupChange) {
     const group = await db.uplineGroup.findUnique({ where: { id: groupChange } });
     if (!group) return { status: "error", message: "This upline group no longer exists." };
-    await requireCompanyAccess(group.companyId, "FULL");
+    await requireGroupAccess(group.companyId, "FULL");
   }
   try {
     await db.site.update({ where: { id: site.id }, data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), uplinePercentage: parsed.data.uplinePercentage, ...(groupChange !== undefined ? { uplineGroupId: groupChange } : {}) } });
@@ -86,7 +86,7 @@ export async function assignSiteGroupAction(_: ActionState, formData: FormData):
   if (groupId) {
     const group = await db.uplineGroup.findUnique({ where: { id: groupId } });
     if (!group) return { status: "error", message: "This upline group no longer exists." };
-    await requireCompanyAccess(group.companyId, "FULL");
+    await requireGroupAccess(group.companyId, "FULL");
   }
   await db.site.update({ where: { id: site.id }, data: { uplineGroupId: groupId } });
   refresh([site.uplineGroupId, groupId], site.id);
