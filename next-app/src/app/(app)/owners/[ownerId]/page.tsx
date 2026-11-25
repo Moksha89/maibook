@@ -13,6 +13,9 @@ import { summarizeSettlementProfit } from "@/lib/domain/finance";
 import { shareAt } from "@/lib/services/owner-share-history";
 import { AssignCompanyForm, EditOwnerForm } from "../owner-form";
 import { deleteOwnerEntryAction, unassignOwnerCompanyAction } from "../actions";
+import { OwnerEntryBar } from "./owner-entry-bar";
+import { EditOwnerEntryForm } from "./edit-owner-entry-form";
+import { partnerBalanceDue, partnerPaymentShare, partnerRunningBalances } from "@/lib/services/partner-entries";
 import { Tabs } from "@/components/ui/tabs";
 import { balanceTone, dayStamp } from "@/lib/format";
 
@@ -75,12 +78,35 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
   });
   const assignedIds = new Set([...owner.companyLinks.map((link) => link.companyId), ...shareholders.filter((row) => row.status === "ACTIVE" && !row.deletedAt).map((row) => row.companyId)]);
   const free = accessible.filter((company) => !assignedIds.has(company.id));
-  const entries = owner.entries.filter((entry) => !entry.companyId || accessibleIds.has(entry.companyId) || superAdmin);
+  const payments = owner.entries.filter((entry) => !entry.companyId || accessibleIds.has(entry.companyId) || superAdmin);
   const totalProfit = companies.reduce((sum, row) => sum + row.ownerProfit, 0);
-  settlementRows.sort((x, y) => y.date.getTime() - x.date.getTime() || y.createdAt.getTime() - x.createdAt.getTime());
-  const paid = entries.filter((entry) => entry.direction === "PAID").reduce((sum, entry) => sum + Number(entry.amount.toString()), 0);
-  const received = entries.filter((entry) => entry.direction === "RECEIVED").reduce((sum, entry) => sum + Number(entry.amount.toString()), 0);
-  const balance = totalProfit + paid - received;
+  const paymentRows = payments.map((entry) => {
+    const amount = Number(entry.amount.toString());
+    const direction = entry.direction === "RECEIVED" ? "RECEIVED" as const : "PAID" as const;
+    return {
+      id: entry.id,
+      kind: "payment" as const,
+      date: entry.entryDate,
+      createdAt: entry.createdAt,
+      companyName: entry.company?.name ?? "-",
+      companyId: entry.companyId ?? "",
+      idValue: direction === "PAID" ? "PAID" : "RECEIVED",
+      remarks: entry.remarks || (direction === "PAID" ? "PAID TO PARTNER" : "RECEIVED FROM PARTNER"),
+      amount,
+      ownerShare: partnerPaymentShare(direction, amount),
+      direction,
+    };
+  });
+  const settlementLedger = settlementRows.map((row) => ({ ...row, kind: "share" as const, companyId: "", direction: undefined as "PAID" | "RECEIVED" | undefined }));
+  const ledger = partnerRunningBalances([...settlementLedger, ...paymentRows].sort((x, y) => x.date.getTime() - y.date.getTime() || x.createdAt.getTime() - y.createdAt.getTime())).reverse();
+  const paid = payments.filter((entry) => entry.direction === "PAID").reduce((sum, entry) => sum + Number(entry.amount.toString()), 0);
+  const received = payments.filter((entry) => entry.direction === "RECEIVED").reduce((sum, entry) => sum + Number(entry.amount.toString()), 0);
+  const balance = partnerBalanceDue(totalProfit, payments.map((entry) => ({ direction: entry.direction === "RECEIVED" ? "RECEIVED" as const : "PAID" as const, amount: Number(entry.amount.toString()) })));
+  const dateInput = (value: Date) => value.toISOString().slice(0, 10);
+  const timeInput = (value: Date) => {
+    const ist = new Date(value.getTime() + 5.5 * 3600_000);
+    return `${String(ist.getUTCHours()).padStart(2, "0")}:${String(ist.getUTCMinutes()).padStart(2, "0")}`;
+  };
   const phone = owner.phoneNumbers.map((item) => item.phone).join(", ");
   const stat = (label: string, value: number, className = "") => <div className="rounded-lg border bg-white px-3 py-2"><p className="text-[10px] font-bold uppercase tracking-wide text-[#647386]">{label}</p><p className={`mt-0.5 font-mono text-sm font-semibold ${className}`}>{money(value)}</p></div>;
 
@@ -89,7 +115,7 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
     <p className="-mt-2 mb-3 text-xs text-[#647386]">Phone {phone || "-"} · Email {owner.email || "-"}</p>
     <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4">{stat("Profit share", totalProfit, "")}{stat("Paid to partner", paid, "")}{stat("Received from partner", received, "")}{stat("Balance due", balance, tone(balance))}</div>
 
-    <Tabs label="Owner sections" className="mb-3" active={tab} items={[{ key: "companies", label: `Companies (${companies.length})`, href: `/owners/${owner.id}?tab=companies` }, { key: "entries", label: `Entries (${settlementRows.length})`, href: `/owners/${owner.id}?tab=entries` }]} />
+    <Tabs label="Owner sections" className="mb-3" active={tab} items={[{ key: "companies", label: `Companies (${companies.length})`, href: `/owners/${owner.id}?tab=companies` }, { key: "entries", label: `Entries (${ledger.length})`, href: `/owners/${owner.id}?tab=entries` }]} />
 
     {tab === "companies" ? <section className="overflow-hidden rounded-lg border bg-white">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2"><h2 className="text-sm font-bold">Companies</h2>{canEdit ? <span className="[&_button]:!size-7 [&_button_svg]:!size-3.5"><AssignCompanyForm ownerId={owner.id} ownerName={owner.name} companies={free} /></span> : null}</div>
@@ -100,10 +126,11 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
 
     {tab === "entries" ? <><section className="overflow-hidden rounded-lg border bg-white">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2"><h2 className="text-sm font-bold">Entries</h2><span className="shrink-0 rounded-full border border-[#d5dbe6] bg-[#f7f8fa] px-3 py-1 text-xs text-[#647386]">Balance due <b className={`ml-1 font-mono text-sm ${tone(balance)}`}>{money(balance)}</b></span></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-[#ffeebb] text-[#152235]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">ID</th><th className="px-3 py-2">Remarks</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Partner share</th></tr></thead>
-      <tbody>{settlementRows.map((row) => <tr key={row.id} className={`cursor-default border-t border-white hover:brightness-95 ${Number(row.ownerShare) < 0 ? "bg-[#f8d7da]" : "bg-[#fff3cd]"}`}><td className="whitespace-nowrap px-3 py-2">{dayStamp(row.date, row.createdAt)}</td><td className="px-3 py-2">{row.companyName}</td><td className="px-3 py-2 font-mono font-semibold">{row.idValue}</td><td className="px-3 py-2">{row.remarks || "-"}</td><td className="px-3 py-2 text-right font-mono font-semibold">{money(row.amount)}</td><td className="px-3 py-2 text-right font-mono">{money(row.ownerShare)}</td></tr>)}</tbody></table></div>
-      {!settlementRows.length ? <p className="px-3 py-6 text-center text-xs text-[#647386]">No entries yet.</p> : null}
+      <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-xs"><thead className="bg-[#ffeebb] text-[#152235]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">ID</th><th className="px-3 py-2">Remarks</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Partner share</th><th className="px-3 py-2 text-right">Balance</th>{canEdit ? <th className="px-3 py-2 text-right">Actions</th> : null}</tr></thead>
+      <tbody>{ledger.map((row) => <tr key={`${row.kind}-${row.id}`} className={`cursor-default border-t border-white hover:brightness-95 ${Number(row.ownerShare) < 0 ? "bg-[#f8d7da]" : "bg-[#fff3cd]"}`}><td className="whitespace-nowrap px-3 py-2">{dayStamp(row.date, row.createdAt)}</td><td className="px-3 py-2">{row.companyName}</td><td className="px-3 py-2 font-mono font-semibold">{row.idValue}</td><td className="px-3 py-2">{row.remarks || "-"}</td><td className="px-3 py-2 text-right font-mono font-semibold">{money(row.amount)}</td><td className="px-3 py-2 text-right font-mono">{money(row.ownerShare)}</td><td className={`px-3 py-2 text-right font-mono font-semibold ${tone(row.balance)}`}>{money(row.balance)}</td>{canEdit ? <td className="px-3 py-2"><div className="flex justify-end gap-1">{row.kind === "payment" && row.companyId ? <><EditOwnerEntryForm entry={{ id: row.id, ownerId: owner.id, companyId: row.companyId, entryDate: dateInput(row.date), entryTime: timeInput(row.createdAt), direction: row.direction ?? "PAID", amount: String(Math.round(row.amount)), remarks: row.remarks === "PAID TO PARTNER" || row.remarks === "RECEIVED FROM PARTNER" ? "" : row.remarks }} companies={companyRecords} /><ActionButton action={deleteOwnerEntryAction} fields={{ entryId: row.id }} label="Delete" danger confirmMessage="Delete this partner entry?" /></> : null}</div></td> : null}</tr>)}</tbody></table></div>
+      {!ledger.length ? <p className="px-3 py-6 text-center text-xs text-[#647386]">No entries yet.</p> : null}
     </section>
+    {canEdit && companyRecords.length ? <OwnerEntryBar ownerId={owner.id} companies={companyRecords} /> : null}
     </> : null}
   </>;
 }

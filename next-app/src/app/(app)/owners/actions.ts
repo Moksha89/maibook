@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type { ActionState } from "@/lib/actions/types";
 import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
@@ -18,16 +18,59 @@ const createSchema = z.object({ companyId: optionalCompany, percentage: share.op
 const updateSchema = z.object({ ownerId: z.string().uuid(), ...contact });
 const linkSchema = z.object({ ownerId: z.string().uuid(), companyId: z.string().uuid() });
 const assignSchema = linkSchema.extend({ percentage: share });
-const entrySchema = z.object({ ownerId: z.string().uuid(), companyId: optionalCompany, entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."), direction: z.enum(["PAID", "RECEIVED"]), amount: z.coerce.number({ message: "Enter an amount." }).positive("Amount must be more than 0.").max(1_000_000_000), remarks: z.string().trim().max(500).transform((v) => v.toUpperCase()) });
+const entrySchema = z.object({ ownerId: z.string().uuid(), companyId: optionalCompany, entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."), entryTime: z.string().regex(/^\d{2}:\d{2}$/, "Choose a time.").optional(), direction: z.enum(["PAID", "RECEIVED"]), amount: z.coerce.number({ message: "Enter an amount." }).positive("Amount must be more than 0.").max(1_000_000_000), remarks: z.string().trim().max(500).transform((v) => v.toUpperCase()) });
+const updateEntrySchema = entrySchema.extend({ entryId: z.string().uuid() });
 
-type OwnerAccess = { id: string; createdById: string | null; companyLinks: { companyId: string }[] };
+type OwnerAccess = { id: string; createdById: string | null; normalizedName: string; companyLinks: { companyId: string }[] };
 
-/** Super admins, the person who created the owner, or anyone with full access to one of its companies. */
+/** Super admins, the person who created the owner, or anyone with full access to one of its companies (including shareholder partnerships). */
+async function ownerCompanyIds(owner: OwnerAccess) {
+  const ids = new Set(owner.companyLinks.map((link) => link.companyId));
+  const shareholders = await db.shareholder.findMany({ where: { deletedAt: null, normalizedName: owner.normalizedName }, select: { companyId: true } });
+  for (const row of shareholders) ids.add(row.companyId);
+  return ids;
+}
+
 async function requireOwnerAccess(owner: OwnerAccess) {
   const session = await requireSession();
   if (session.user.roles.some(({ role }) => role.key === "superadmin") || owner.createdById === session.userId) return;
-  for (const link of owner.companyLinks) if (await requireCompanyAccess(link.companyId, "FULL").then(() => true, () => false)) return;
+  for (const companyId of await ownerCompanyIds(owner)) if (await requireCompanyAccess(companyId, "FULL").then(() => true, () => false)) return;
   throw new Error("You do not have access to this owner.");
+}
+
+function entryPostedAt(entryDate: string, entryTime?: string) {
+  const time = entryTime && /^\d{2}:\d{2}$/.test(entryTime) ? entryTime : "00:00";
+  return new Date(`${entryDate}T${time}:00+05:30`);
+}
+
+/** Move the matching shareholder balance: paid increases it (we owe less), received decreases it. */
+async function applyShareholderPayment(tx: Prisma.TransactionClient, input: { ownerName: string; companyId: string; entryId: string; direction: "PAID" | "RECEIVED"; amount: Prisma.Decimal | number | string; entryDate: Date; remarks: string | null; reverse?: boolean }) {
+  const shareholder = await tx.shareholder.findFirst({ where: { companyId: input.companyId, normalizedName: normalizeName(input.ownerName), deletedAt: null } });
+  if (!shareholder) return;
+  const signed = Number(input.amount.toString()) * (input.direction === "PAID" ? 1 : -1) * (input.reverse ? -1 : 1);
+  const key = `owner-entry:${input.entryId}`;
+  const existing = await tx.shareholderEntry.findFirst({ where: { distributionKey: key } });
+  if (input.reverse) {
+    if (existing && !existing.deletedAt) {
+      await tx.shareholderEntry.update({ where: { id: existing.id }, data: { deletedAt: new Date() } });
+      await tx.shareholder.update({ where: { id: shareholder.id }, data: { currentBalance: { increment: new Prisma.Decimal((-Number(existing.amount.toString())).toString()) } } });
+    }
+    return;
+  }
+  const data = { companyId: input.companyId, shareholderId: shareholder.id, source: "MANUAL_ADJUSTMENT" as const, entryDate: input.entryDate, companyProfit: 0, percentage: 0, amount: signed, remarks: input.remarks, deletedAt: null };
+  if (existing) {
+    if (!existing.deletedAt) await tx.shareholder.update({ where: { id: shareholder.id }, data: { currentBalance: { increment: new Prisma.Decimal((-Number(existing.amount.toString())).toString()) } } });
+    await tx.shareholderEntry.update({ where: { id: existing.id }, data });
+  } else {
+    await tx.shareholderEntry.create({ data: { ...data, distributionKey: key } });
+  }
+  await tx.shareholder.update({ where: { id: shareholder.id }, data: { currentBalance: { increment: new Prisma.Decimal(signed.toString()) } } });
+}
+
+function revalidateOwnerAndCompany(ownerId: string, companyId: string | null) {
+  revalidatePath(`/owners/${ownerId}`);
+  revalidatePath("/owners");
+  if (companyId) revalidatePath(`/companies/${companyId}`);
 }
 
 async function audit(companyId: string | null, action: string, ownerId: string, values: { oldValues?: object; newValues?: object }) {
@@ -147,18 +190,49 @@ export async function deleteOwnerAction(_: ActionState, formData: FormData): Pro
 
 export async function createOwnerEntryAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("owners.update");
-  const parsed = entrySchema.safeParse({ ownerId: formData.get("ownerId"), companyId: formData.get("companyId") || "", entryDate: formData.get("entryDate"), direction: formData.get("direction"), amount: formData.get("amount"), remarks: formData.get("remarks") || "" });
+  const parsed = entrySchema.safeParse({ ownerId: formData.get("ownerId"), companyId: formData.get("companyId") || "", entryDate: formData.get("entryDate"), entryTime: formData.get("entryTime") || undefined, direction: formData.get("direction"), amount: formData.get("amount"), remarks: formData.get("remarks") || "" });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
   const owner = await db.owner.findUnique({ where: { id: parsed.data.ownerId }, include: { companyLinks: true } });
   if (!owner) return { status: "error", message: "This owner no longer exists." };
   await requireOwnerAccess(owner);
   const companyId = parsed.data.companyId || null;
-  if (companyId && !owner.companyLinks.some((link) => link.companyId === companyId)) return { status: "error", message: "That company is not assigned to this owner." };
+  if (!companyId) return { status: "error", message: "Select a company." };
+  if (!(await ownerCompanyIds(owner)).has(companyId)) return { status: "error", message: "That company is not assigned to this owner." };
   const session = await requireSession();
-  const entry = await db.ownerEntry.create({ data: { ownerId: owner.id, companyId, entryDate: new Date(`${parsed.data.entryDate}T00:00:00Z`), direction: parsed.data.direction, amount: parsed.data.amount, remarks: parsed.data.remarks || null, createdById: session.userId } });
-  await audit(companyId, "owner.entry.create", owner.id, { newValues: { entryId: entry.id, direction: entry.direction, amount: parsed.data.amount, entryDate: parsed.data.entryDate } });
-  revalidatePath(`/owners/${owner.id}`);
+  const entryDate = new Date(`${parsed.data.entryDate}T00:00:00Z`);
+  const postedAt = entryPostedAt(parsed.data.entryDate, parsed.data.entryTime);
+  const entry = await db.$transaction(async (tx) => {
+    const created = await tx.ownerEntry.create({ data: { ownerId: owner.id, companyId, entryDate, direction: parsed.data.direction, amount: parsed.data.amount, remarks: parsed.data.remarks || null, createdById: session.userId, createdAt: postedAt } });
+    await applyShareholderPayment(tx, { ownerName: owner.name, companyId, entryId: created.id, direction: parsed.data.direction, amount: parsed.data.amount, entryDate, remarks: parsed.data.remarks || null });
+    return created;
+  });
+  await audit(companyId, "owner.entry.create", owner.id, { newValues: { entryId: entry.id, direction: entry.direction, amount: parsed.data.amount, entryDate: parsed.data.entryDate, entryTime: parsed.data.entryTime } });
+  revalidateOwnerAndCompany(owner.id, companyId);
   return { status: "success", message: parsed.data.direction === "PAID" ? "Payment to partner saved." : "Receipt from partner saved." };
+}
+
+export async function updateOwnerEntryAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("owners.update");
+  const parsed = updateEntrySchema.safeParse({ entryId: formData.get("entryId"), ownerId: formData.get("ownerId"), companyId: formData.get("companyId") || "", entryDate: formData.get("entryDate"), entryTime: formData.get("entryTime") || undefined, direction: formData.get("direction"), amount: formData.get("amount"), remarks: formData.get("remarks") || "" });
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
+  const existing = await db.ownerEntry.findUnique({ where: { id: parsed.data.entryId }, include: { owner: { include: { companyLinks: true } } } });
+  if (!existing || existing.deletedAt) return { status: "error", message: "This entry no longer exists." };
+  if (existing.ownerId !== parsed.data.ownerId) return { status: "error", message: "This entry no longer exists." };
+  await requireOwnerAccess(existing.owner);
+  const companyId = parsed.data.companyId || null;
+  if (!companyId) return { status: "error", message: "Select a company." };
+  if (!(await ownerCompanyIds(existing.owner)).has(companyId)) return { status: "error", message: "That company is not assigned to this owner." };
+  const entryDate = new Date(`${parsed.data.entryDate}T00:00:00Z`);
+  const postedAt = entryPostedAt(parsed.data.entryDate, parsed.data.entryTime);
+  await db.$transaction(async (tx) => {
+    if (existing.companyId) await applyShareholderPayment(tx, { ownerName: existing.owner.name, companyId: existing.companyId, entryId: existing.id, direction: existing.direction as "PAID" | "RECEIVED", amount: existing.amount, entryDate: existing.entryDate, remarks: existing.remarks, reverse: true });
+    await tx.ownerEntry.update({ where: { id: existing.id }, data: { companyId, entryDate, direction: parsed.data.direction, amount: parsed.data.amount, remarks: parsed.data.remarks || null, createdAt: postedAt } });
+    await applyShareholderPayment(tx, { ownerName: existing.owner.name, companyId, entryId: existing.id, direction: parsed.data.direction, amount: parsed.data.amount, entryDate, remarks: parsed.data.remarks || null });
+  });
+  await audit(companyId, "owner.entry.update", existing.ownerId, { oldValues: { entryId: existing.id, direction: existing.direction, amount: existing.amount.toString(), companyId: existing.companyId }, newValues: { direction: parsed.data.direction, amount: parsed.data.amount, companyId, entryDate: parsed.data.entryDate } });
+  revalidateOwnerAndCompany(existing.ownerId, companyId);
+  if (existing.companyId && existing.companyId !== companyId) revalidatePath(`/companies/${existing.companyId}`);
+  return { status: "success", message: "Entry updated." };
 }
 
 export async function deleteOwnerEntryAction(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -166,9 +240,12 @@ export async function deleteOwnerEntryAction(_: ActionState, formData: FormData)
   const entry = await db.ownerEntry.findUnique({ where: { id: String(formData.get("entryId") || "") }, include: { owner: { include: { companyLinks: true } } } });
   if (!entry || entry.deletedAt) return { status: "error", message: "This entry no longer exists." };
   await requireOwnerAccess(entry.owner);
-  await db.ownerEntry.update({ where: { id: entry.id }, data: { deletedAt: new Date() } });
+  await db.$transaction(async (tx) => {
+    if (entry.companyId) await applyShareholderPayment(tx, { ownerName: entry.owner.name, companyId: entry.companyId, entryId: entry.id, direction: entry.direction as "PAID" | "RECEIVED", amount: entry.amount, entryDate: entry.entryDate, remarks: entry.remarks, reverse: true });
+    await tx.ownerEntry.update({ where: { id: entry.id }, data: { deletedAt: new Date() } });
+  });
   await audit(entry.companyId, "owner.entry.delete", entry.ownerId, { oldValues: { entryId: entry.id, direction: entry.direction, amount: entry.amount.toString() } });
-  revalidatePath(`/owners/${entry.ownerId}`);
+  revalidateOwnerAndCompany(entry.ownerId, entry.companyId);
   return { status: "success", message: "Entry deleted." };
 }
 

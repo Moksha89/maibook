@@ -9,6 +9,7 @@ import type { ActionState } from "@/lib/actions/types";
 import { createOwnerEntryAction } from "../actions";
 
 const today = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; };
+const nowTime = () => { const now = new Date(); return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`; };
 
 /** Compact payment row for an owner or business partner: Paid (to partner) or Received (from partner). */
 export function OwnerEntryBar({ ownerId, companies }: { ownerId: string; companies: { id: string; name: string }[] }) {
@@ -22,9 +23,10 @@ export function OwnerEntryBar({ ownerId, companies }: { ownerId: string; compani
     <input type="hidden" name="direction" value={direction} />
     <div className="flex flex-wrap items-center gap-1.5 lg:flex-nowrap [&_[role=alert]]:hidden [&_select]:h-8 [&_select]:text-xs [&_.rounded-full]:!h-8 [&_.rounded-full]:!text-xs [&_.w-8]:!w-6 [&_.w-8_svg]:!size-3.5">
       <Input name="entryDate" type="date" aria-label="Date" title="Date" defaultValue={today()} className="w-36 shrink-0" required />
+      <Input name="entryTime" type="time" aria-label="Time" title="Time" defaultValue={nowTime()} className="w-28 shrink-0" required />
       <div role="group" aria-label="Type" className="flex h-8 shrink-0 overflow-hidden rounded-full border border-[#d5dbe6]">{pill("PAID", "Paid to partner", ArrowUpRight, "bg-[#f44336] text-white")}{pill("RECEIVED", "Received from partner", ArrowDownLeft, "bg-[#16a34a] text-white")}</div>
-      <Select name="companyId" aria-label="Company" title="Company" className="w-36 shrink-0" defaultValue=""><option value="">No company</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</Select>
-      <Input name="amount" type="number" aria-label="Amount" title="Amount" min={0.01} step="0.01" className="w-28 shrink-0" required />
+      {companies.length ? <Select name="companyId" aria-label="Company" title="Company" className="w-36 shrink-0" defaultValue={companies.length === 1 ? companies[0].id : ""} required><option value="" disabled>{companies.length > 1 ? "Select company" : companies[0].name}</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</Select> : null}
+      <Input name="amount" type="number" aria-label="Amount" title="Amount" min={1} step="1" className="w-28 shrink-0" required />
       <Input name="remarks" aria-label="Remarks" title="Remarks" uppercase className="min-w-0 flex-1 basis-32" />
       <div className="flex shrink-0 gap-1 [&_button]:!size-6 [&_button_svg]:!size-3">
         <Button type="submit" iconOnly icon={Check} aria-label="Save entry" title="Save entry" disabled={pending} className="!bg-[#ffc107] !text-[#111] !ring-0 hover:!brightness-110" />
