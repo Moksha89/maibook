@@ -15,7 +15,8 @@ import { AssignCompanyForm, EditOwnerForm } from "../owner-form";
 import { deleteOwnerEntryAction, unassignOwnerCompanyAction } from "../actions";
 import { OwnerEntryBar } from "./owner-entry-bar";
 import { EditOwnerEntryForm } from "./edit-owner-entry-form";
-import { partnerBalanceDue, partnerPaymentShare, partnerRunningBalances } from "@/lib/services/partner-entries";
+import { TransferForm } from "../transfer-form";
+import { includePartnerShareRow, partnerBalanceDue, partnerEntryShare, partnerRunningBalances } from "@/lib/services/partner-entries";
 import { Tabs } from "@/components/ui/tabs";
 import { balanceTone, dayStamp } from "@/lib/format";
 
@@ -62,38 +63,49 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
     for (const row of settlements.filter((item) => item.companyId === company.id)) {
       const profit = Number(summarizeSettlementProfit([{ amount: row.amount.toString(), absoluteAmount: row.absoluteAmount.toString(), agentShare: row.agentShare.toString(), uplineShare: row.uplineShare.toString(), companyShare: row.companyShare.toString() }]).companyProfit.toString());
       companyProfit += profit;
-      const share = -((profit * shareAt(linkHistory, row.createdAt, 0)) / 100) || 0;
+      const percent = shareAt(linkHistory, row.createdAt, 0);
+      const share = -((profit * percent) / 100) || 0;
       ownerProfit += share;
-      settlementRows.push({ id: row.id, date: row.settlementDate, createdAt: row.createdAt, companyName: company.name, idValue: row.identifier.value, remarks: row.remarks ?? "", amount: Number(row.amount.toString()), ownerShare: share });
+      if (includePartnerShareRow(percent)) settlementRows.push({ id: row.id, date: row.settlementDate, createdAt: row.createdAt, companyName: company.name, idValue: row.identifier.value, remarks: row.remarks ?? "", amount: Number(row.amount.toString()), ownerShare: share });
     }
     let companyExpenses = 0;
     for (const row of expenses.filter((item) => item.companyId === company.id)) {
       const amount = Number(row.amount.toString());
-      const share = (amount * shareAt(linkHistory, row.createdAt, 0)) / 100;
+      const percent = shareAt(linkHistory, row.createdAt, 0);
+      const share = (amount * percent) / 100;
       companyExpenses += amount;
       ownerProfit += share;
-      settlementRows.push({ id: row.id, date: row.expenseDate, createdAt: row.createdAt, companyName: company.name, idValue: "-", remarks: `EXPENSE ${row.category}${row.remarks ? `: ${row.remarks}` : ""}`, amount: -amount, ownerShare: share });
+      if (includePartnerShareRow(percent)) settlementRows.push({ id: row.id, date: row.expenseDate, createdAt: row.createdAt, companyName: company.name, idValue: "-", remarks: `EXPENSE ${row.category}${row.remarks ? `: ${row.remarks}` : ""}`, amount: -amount, ownerShare: share });
     }
     return { id: company.id, name: company.name, percentage, companyProfit, companyExpenses, finalPnl: companyProfit - companyExpenses, ownerProfit };
   });
   const assignedIds = new Set([...owner.companyLinks.map((link) => link.companyId), ...shareholders.filter((row) => row.status === "ACTIVE" && !row.deletedAt).map((row) => row.companyId)]);
   const free = accessible.filter((company) => !assignedIds.has(company.id));
-  const payments = owner.entries.filter((entry) => !entry.companyId || accessibleIds.has(entry.companyId) || superAdmin);
+  const payments = owner.entries;
+  const transferGroupIds = [...new Set(payments.map((entry) => entry.groupId).filter((id): id is string => Boolean(id)))];
+  const counterparts = transferGroupIds.length ? await db.ownerEntry.findMany({ where: { groupId: { in: transferGroupIds }, deletedAt: null, ownerId: { not: owner.id } }, include: { owner: { select: { id: true, name: true } } } }) : [];
+  const partners = await db.owner.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
   const totalProfit = companies.reduce((sum, row) => sum + row.ownerProfit, 0);
   const paymentRows = payments.map((entry) => {
     const amount = Number(entry.amount.toString());
-    const direction = entry.direction === "RECEIVED" ? "RECEIVED" as const : "PAID" as const;
+    const direction = entry.direction;
+    const counterpart = counterparts.find((row) => row.groupId === entry.groupId);
+    const isTransfer = direction === "TRANSFER_OUT" || direction === "TRANSFER_IN";
     return {
       id: entry.id,
       kind: "payment" as const,
       date: entry.entryDate,
       createdAt: entry.createdAt,
-      companyName: entry.company?.name ?? "-",
-      companyId: entry.companyId ?? "",
-      idValue: direction === "PAID" ? "PAID" : "RECEIVED",
-      remarks: entry.remarks || (direction === "PAID" ? "PAID TO PARTNER" : "RECEIVED FROM PARTNER"),
+      companyName: isTransfer ? (direction === "TRANSFER_OUT" ? `To ${counterpart?.owner.name ?? "-"}` : `From ${counterpart?.owner.name ?? "-"}`) : "-",
+      companyId: "",
+      groupId: entry.groupId,
+      fromOwnerId: direction === "TRANSFER_IN" ? counterpart?.owner.id ?? "" : owner.id,
+      toOwnerId: direction === "TRANSFER_OUT" ? counterpart?.owner.id ?? "" : owner.id,
+      isTransfer,
+      idValue: isTransfer ? "TRANSFER" : direction === "RECEIVED" ? "RECEIVED" : "PAID",
+      remarks: entry.remarks || (isTransfer ? "INTERNAL TRANSFER" : direction === "PAID" ? "PAID TO PARTNER" : "RECEIVED FROM PARTNER"),
       amount,
-      ownerShare: partnerPaymentShare(direction, amount),
+      ownerShare: partnerEntryShare(direction, amount),
       direction,
     };
   });
@@ -101,7 +113,7 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
   const ledger = partnerRunningBalances([...settlementLedger, ...paymentRows].sort((x, y) => x.date.getTime() - y.date.getTime() || x.createdAt.getTime() - y.createdAt.getTime())).reverse();
   const paid = payments.filter((entry) => entry.direction === "PAID").reduce((sum, entry) => sum + Number(entry.amount.toString()), 0);
   const received = payments.filter((entry) => entry.direction === "RECEIVED").reduce((sum, entry) => sum + Number(entry.amount.toString()), 0);
-  const balance = partnerBalanceDue(totalProfit, payments.map((entry) => ({ direction: entry.direction === "RECEIVED" ? "RECEIVED" as const : "PAID" as const, amount: Number(entry.amount.toString()) })));
+  const balance = partnerBalanceDue(totalProfit, payments.map((entry) => ({ direction: entry.direction, amount: Number(entry.amount.toString()) })));
   const dateInput = (value: Date) => value.toISOString().slice(0, 10);
   const timeInput = (value: Date) => {
     const ist = new Date(value.getTime() + 5.5 * 3600_000);
@@ -125,12 +137,12 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
     </section> : null}
 
     {tab === "entries" ? <><section className="overflow-hidden rounded-lg border bg-white">
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2"><h2 className="text-sm font-bold">Entries</h2><span className="shrink-0 rounded-full border border-[#d5dbe6] bg-[#f7f8fa] px-3 py-1 text-xs text-[#647386]">Balance due <b className={`ml-1 font-mono text-sm ${tone(balance)}`}>{money(balance)}</b></span></div>
+      <div className="flex items-center justify-between gap-2 border-b px-3 py-2"><h2 className="text-sm font-bold">Entries</h2><div className="flex items-center gap-2">{canEdit && partners.length > 1 ? <TransferForm partners={partners} defaultFromId={owner.id} /> : null}<span className="shrink-0 rounded-full border border-[#d5dbe6] bg-[#f7f8fa] px-3 py-1 text-xs text-[#647386]">Balance due <b className={`ml-1 font-mono text-sm ${tone(balance)}`}>{money(balance)}</b></span></div></div>
       <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-xs"><thead className="bg-[#ffeebb] text-[#152235]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">ID</th><th className="px-3 py-2">Remarks</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Partner share</th><th className="px-3 py-2 text-right">Balance</th>{canEdit ? <th className="px-3 py-2 text-right">Actions</th> : null}</tr></thead>
-      <tbody>{ledger.map((row) => <tr key={`${row.kind}-${row.id}`} className={`cursor-default border-t border-white hover:brightness-95 ${Number(row.ownerShare) < 0 ? "bg-[#f8d7da]" : "bg-[#fff3cd]"}`}><td className="whitespace-nowrap px-3 py-2">{dayStamp(row.date, row.createdAt)}</td><td className="px-3 py-2">{row.companyName}</td><td className="px-3 py-2 font-mono font-semibold">{row.idValue}</td><td className="px-3 py-2">{row.remarks || "-"}</td><td className="px-3 py-2 text-right font-mono font-semibold">{money(row.amount)}</td><td className="px-3 py-2 text-right font-mono">{money(row.ownerShare)}</td><td className={`px-3 py-2 text-right font-mono font-semibold ${tone(row.balance)}`}>{money(row.balance)}</td>{canEdit ? <td className="px-3 py-2"><div className="flex justify-end gap-1">{row.kind === "payment" && row.companyId ? <><EditOwnerEntryForm entry={{ id: row.id, ownerId: owner.id, companyId: row.companyId, entryDate: dateInput(row.date), entryTime: timeInput(row.createdAt), direction: row.direction ?? "PAID", amount: String(Math.round(row.amount)), remarks: row.remarks === "PAID TO PARTNER" || row.remarks === "RECEIVED FROM PARTNER" ? "" : row.remarks }} companies={companyRecords} /><ActionButton action={deleteOwnerEntryAction} fields={{ entryId: row.id }} label="Delete" danger confirmMessage="Delete this partner entry?" /></> : null}</div></td> : null}</tr>)}</tbody></table></div>
+      <tbody>{ledger.map((row) => <tr key={`${row.kind}-${row.id}`} className={`cursor-default border-t border-white hover:brightness-95 ${Number(row.ownerShare) < 0 ? "bg-[#f8d7da]" : "bg-[#fff3cd]"}`}><td className="whitespace-nowrap px-3 py-2">{dayStamp(row.date, row.createdAt)}</td><td className="px-3 py-2">{row.companyName}</td><td className="px-3 py-2 font-mono font-semibold">{row.idValue}</td><td className="px-3 py-2">{row.remarks || "-"}</td><td className="px-3 py-2 text-right font-mono font-semibold">{money(row.amount)}</td><td className="px-3 py-2 text-right font-mono">{money(row.ownerShare)}</td><td className={`px-3 py-2 text-right font-mono font-semibold ${tone(row.balance)}`}>{money(row.balance)}</td>{canEdit ? <td className="px-3 py-2"><div className="flex justify-end gap-1">{row.kind === "payment" ? <>{row.isTransfer ? <TransferForm partners={partners} entry={{ id: row.id, fromOwnerId: row.fromOwnerId, toOwnerId: row.toOwnerId, entryDate: dateInput(row.date), entryTime: timeInput(row.createdAt), amount: String(Math.round(row.amount)), remarks: row.remarks === "INTERNAL TRANSFER" ? "" : row.remarks }} /> : <EditOwnerEntryForm entry={{ id: row.id, ownerId: owner.id, entryDate: dateInput(row.date), entryTime: timeInput(row.createdAt), direction: row.direction === "RECEIVED" ? "RECEIVED" : "PAID", amount: String(Math.round(row.amount)), remarks: row.remarks === "PAID TO PARTNER" || row.remarks === "RECEIVED FROM PARTNER" ? "" : row.remarks }} />}<ActionButton action={deleteOwnerEntryAction} fields={{ entryId: row.id }} label="Delete" danger confirmMessage={row.isTransfer ? "Delete this transfer from both partners?" : "Delete this partner entry?"} /></> : null}</div></td> : null}</tr>)}</tbody></table></div>
       {!ledger.length ? <p className="px-3 py-6 text-center text-xs text-[#647386]">No entries yet.</p> : null}
     </section>
-    {canEdit && companyRecords.length ? <OwnerEntryBar ownerId={owner.id} companies={companyRecords} /> : null}
+    {canEdit ? <OwnerEntryBar ownerId={owner.id} /> : null}
     </> : null}
   </>;
 }

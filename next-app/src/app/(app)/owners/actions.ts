@@ -18,8 +18,10 @@ const createSchema = z.object({ companyId: optionalCompany, percentage: share.op
 const updateSchema = z.object({ ownerId: z.string().uuid(), ...contact });
 const linkSchema = z.object({ ownerId: z.string().uuid(), companyId: z.string().uuid() });
 const assignSchema = linkSchema.extend({ percentage: share });
-const entrySchema = z.object({ ownerId: z.string().uuid(), companyId: optionalCompany, entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."), entryTime: z.string().regex(/^\d{2}:\d{2}$/, "Choose a time.").optional(), direction: z.enum(["PAID", "RECEIVED"]), amount: z.coerce.number({ message: "Enter an amount." }).positive("Amount must be more than 0.").max(1_000_000_000), remarks: z.string().trim().max(500).transform((v) => v.toUpperCase()) });
+const entrySchema = z.object({ ownerId: z.string().uuid(), entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."), entryTime: z.string().regex(/^\d{2}:\d{2}$/, "Choose a time.").optional(), direction: z.enum(["PAID", "RECEIVED"]), amount: z.coerce.number({ message: "Enter an amount." }).positive("Amount must be more than 0.").max(1_000_000_000), remarks: z.string().trim().max(500).transform((v) => v.toUpperCase()) });
 const updateEntrySchema = entrySchema.extend({ entryId: z.string().uuid() });
+const transferSchema = z.object({ fromOwnerId: z.string().uuid(), toOwnerId: z.string().uuid(), entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."), entryTime: z.string().regex(/^\d{2}:\d{2}$/, "Choose a time.").optional(), amount: z.coerce.number({ message: "Enter an amount." }).positive("Amount must be more than 0.").max(1_000_000_000), remarks: z.string().trim().max(500).transform((v) => v.toUpperCase()) });
+const updateTransferSchema = transferSchema.extend({ entryId: z.string().uuid() });
 
 type OwnerAccess = { id: string; createdById: string | null; normalizedName: string; companyLinks: { companyId: string }[] };
 
@@ -190,48 +192,37 @@ export async function deleteOwnerAction(_: ActionState, formData: FormData): Pro
 
 export async function createOwnerEntryAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("owners.update");
-  const parsed = entrySchema.safeParse({ ownerId: formData.get("ownerId"), companyId: formData.get("companyId") || "", entryDate: formData.get("entryDate"), entryTime: formData.get("entryTime") || undefined, direction: formData.get("direction"), amount: formData.get("amount"), remarks: formData.get("remarks") || "" });
+  const parsed = entrySchema.safeParse({ ownerId: formData.get("ownerId"), entryDate: formData.get("entryDate"), entryTime: formData.get("entryTime") || undefined, direction: formData.get("direction"), amount: formData.get("amount"), remarks: formData.get("remarks") || "" });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
   const owner = await db.owner.findUnique({ where: { id: parsed.data.ownerId }, include: { companyLinks: true } });
   if (!owner) return { status: "error", message: "This owner no longer exists." };
   await requireOwnerAccess(owner);
-  const companyId = parsed.data.companyId || null;
-  if (!companyId) return { status: "error", message: "Select a company." };
-  if (!(await ownerCompanyIds(owner)).has(companyId)) return { status: "error", message: "That company is not assigned to this owner." };
   const session = await requireSession();
   const entryDate = new Date(`${parsed.data.entryDate}T00:00:00Z`);
   const postedAt = entryPostedAt(parsed.data.entryDate, parsed.data.entryTime);
-  const entry = await db.$transaction(async (tx) => {
-    const created = await tx.ownerEntry.create({ data: { ownerId: owner.id, companyId, entryDate, direction: parsed.data.direction, amount: parsed.data.amount, remarks: parsed.data.remarks || null, createdById: session.userId, createdAt: postedAt } });
-    await applyShareholderPayment(tx, { ownerName: owner.name, companyId, entryId: created.id, direction: parsed.data.direction, amount: parsed.data.amount, entryDate, remarks: parsed.data.remarks || null });
-    return created;
-  });
-  await audit(companyId, "owner.entry.create", owner.id, { newValues: { entryId: entry.id, direction: entry.direction, amount: parsed.data.amount, entryDate: parsed.data.entryDate, entryTime: parsed.data.entryTime } });
-  revalidateOwnerAndCompany(owner.id, companyId);
+  const entry = await db.ownerEntry.create({ data: { ownerId: owner.id, companyId: null, entryDate, direction: parsed.data.direction, amount: parsed.data.amount, remarks: parsed.data.remarks || null, createdById: session.userId, createdAt: postedAt } });
+  await audit(null, "owner.entry.create", owner.id, { newValues: { entryId: entry.id, direction: entry.direction, amount: parsed.data.amount, entryDate: parsed.data.entryDate, entryTime: parsed.data.entryTime } });
+  revalidateOwnerAndCompany(owner.id, null);
   return { status: "success", message: parsed.data.direction === "PAID" ? "Payment to partner saved." : "Receipt from partner saved." };
 }
 
 export async function updateOwnerEntryAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("owners.update");
-  const parsed = updateEntrySchema.safeParse({ entryId: formData.get("entryId"), ownerId: formData.get("ownerId"), companyId: formData.get("companyId") || "", entryDate: formData.get("entryDate"), entryTime: formData.get("entryTime") || undefined, direction: formData.get("direction"), amount: formData.get("amount"), remarks: formData.get("remarks") || "" });
+  const parsed = updateEntrySchema.safeParse({ entryId: formData.get("entryId"), ownerId: formData.get("ownerId"), entryDate: formData.get("entryDate"), entryTime: formData.get("entryTime") || undefined, direction: formData.get("direction"), amount: formData.get("amount"), remarks: formData.get("remarks") || "" });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
   const existing = await db.ownerEntry.findUnique({ where: { id: parsed.data.entryId }, include: { owner: { include: { companyLinks: true } } } });
   if (!existing || existing.deletedAt) return { status: "error", message: "This entry no longer exists." };
   if (existing.ownerId !== parsed.data.ownerId) return { status: "error", message: "This entry no longer exists." };
+  if (existing.direction === "TRANSFER_OUT" || existing.direction === "TRANSFER_IN") return { status: "error", message: "Edit this transfer from the transfer form." };
   await requireOwnerAccess(existing.owner);
-  const companyId = parsed.data.companyId || null;
-  if (!companyId) return { status: "error", message: "Select a company." };
-  if (!(await ownerCompanyIds(existing.owner)).has(companyId)) return { status: "error", message: "That company is not assigned to this owner." };
   const entryDate = new Date(`${parsed.data.entryDate}T00:00:00Z`);
   const postedAt = entryPostedAt(parsed.data.entryDate, parsed.data.entryTime);
   await db.$transaction(async (tx) => {
-    if (existing.companyId) await applyShareholderPayment(tx, { ownerName: existing.owner.name, companyId: existing.companyId, entryId: existing.id, direction: existing.direction as "PAID" | "RECEIVED", amount: existing.amount, entryDate: existing.entryDate, remarks: existing.remarks, reverse: true });
-    await tx.ownerEntry.update({ where: { id: existing.id }, data: { companyId, entryDate, direction: parsed.data.direction, amount: parsed.data.amount, remarks: parsed.data.remarks || null, createdAt: postedAt } });
-    await applyShareholderPayment(tx, { ownerName: existing.owner.name, companyId, entryId: existing.id, direction: parsed.data.direction, amount: parsed.data.amount, entryDate, remarks: parsed.data.remarks || null });
+    if (existing.companyId) await applyShareholderPayment(tx, { ownerName: existing.owner.name, companyId: existing.companyId, entryId: existing.id, direction: existing.direction === "RECEIVED" ? "RECEIVED" : "PAID", amount: existing.amount, entryDate: existing.entryDate, remarks: existing.remarks, reverse: true });
+    await tx.ownerEntry.update({ where: { id: existing.id }, data: { companyId: null, entryDate, direction: parsed.data.direction, amount: parsed.data.amount, remarks: parsed.data.remarks || null, createdAt: postedAt } });
   });
-  await audit(companyId, "owner.entry.update", existing.ownerId, { oldValues: { entryId: existing.id, direction: existing.direction, amount: existing.amount.toString(), companyId: existing.companyId }, newValues: { direction: parsed.data.direction, amount: parsed.data.amount, companyId, entryDate: parsed.data.entryDate } });
-  revalidateOwnerAndCompany(existing.ownerId, companyId);
-  if (existing.companyId && existing.companyId !== companyId) revalidatePath(`/companies/${existing.companyId}`);
+  await audit(null, "owner.entry.update", existing.ownerId, { oldValues: { entryId: existing.id, direction: existing.direction, amount: existing.amount.toString(), companyId: existing.companyId }, newValues: { direction: parsed.data.direction, amount: parsed.data.amount, entryDate: parsed.data.entryDate } });
+  revalidateOwnerAndCompany(existing.ownerId, existing.companyId);
   return { status: "success", message: "Entry updated." };
 }
 
@@ -240,12 +231,81 @@ export async function deleteOwnerEntryAction(_: ActionState, formData: FormData)
   const entry = await db.ownerEntry.findUnique({ where: { id: String(formData.get("entryId") || "") }, include: { owner: { include: { companyLinks: true } } } });
   if (!entry || entry.deletedAt) return { status: "error", message: "This entry no longer exists." };
   await requireOwnerAccess(entry.owner);
-  await db.$transaction(async (tx) => {
-    if (entry.companyId) await applyShareholderPayment(tx, { ownerName: entry.owner.name, companyId: entry.companyId, entryId: entry.id, direction: entry.direction as "PAID" | "RECEIVED", amount: entry.amount, entryDate: entry.entryDate, remarks: entry.remarks, reverse: true });
-    await tx.ownerEntry.update({ where: { id: entry.id }, data: { deletedAt: new Date() } });
+  const group = await db.$transaction(async (tx) => {
+    const rows = entry.groupId ? await tx.ownerEntry.findMany({ where: { groupId: entry.groupId, deletedAt: null }, include: { owner: { include: { companyLinks: true } } } }) : [entry];
+    for (const row of rows) {
+      if (row.ownerId !== entry.ownerId) await requireOwnerAccess(row.owner);
+      if (row.companyId) await applyShareholderPayment(tx, { ownerName: row.owner.name, companyId: row.companyId, entryId: row.id, direction: row.direction === "RECEIVED" ? "RECEIVED" : "PAID", amount: row.amount, entryDate: row.entryDate, remarks: row.remarks, reverse: true });
+      await tx.ownerEntry.update({ where: { id: row.id }, data: { deletedAt: new Date() } });
+    }
+    return rows;
   });
-  await audit(entry.companyId, "owner.entry.delete", entry.ownerId, { oldValues: { entryId: entry.id, direction: entry.direction, amount: entry.amount.toString() } });
-  revalidateOwnerAndCompany(entry.ownerId, entry.companyId);
-  return { status: "success", message: "Entry deleted." };
+  await audit(entry.companyId, "owner.entry.delete", entry.ownerId, { oldValues: { entryId: entry.id, groupId: entry.groupId, direction: entry.direction, amount: entry.amount.toString() } });
+  for (const row of group) revalidateOwnerAndCompany(row.ownerId, row.companyId);
+  return { status: "success", message: group.length > 1 ? "Transfer deleted." : "Entry deleted." };
 }
 
+export async function createOwnerTransferAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("owners.update");
+  const parsed = transferSchema.safeParse({ fromOwnerId: formData.get("fromOwnerId"), toOwnerId: formData.get("toOwnerId"), entryDate: formData.get("entryDate"), entryTime: formData.get("entryTime") || undefined, amount: formData.get("amount"), remarks: formData.get("remarks") || "" });
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
+  if (parsed.data.fromOwnerId === parsed.data.toOwnerId) return { status: "error", message: "Choose two different partners." };
+  const [fromOwner, toOwner] = await Promise.all([
+    db.owner.findUnique({ where: { id: parsed.data.fromOwnerId }, include: { companyLinks: true } }),
+    db.owner.findUnique({ where: { id: parsed.data.toOwnerId }, include: { companyLinks: true } }),
+  ]);
+  if (!fromOwner || !toOwner) return { status: "error", message: "That partner no longer exists." };
+  await requireOwnerAccess(fromOwner);
+  await requireOwnerAccess(toOwner);
+  const session = await requireSession();
+  const entryDate = new Date(`${parsed.data.entryDate}T00:00:00Z`);
+  const postedAt = entryPostedAt(parsed.data.entryDate, parsed.data.entryTime);
+  const remarks = parsed.data.remarks || null;
+  const groupId = randomUUID();
+  // Amount is not capped by the from-partner's balance; a larger amount may flip the sign.
+  await db.$transaction(async (tx) => {
+    await tx.ownerEntry.create({ data: { ownerId: fromOwner.id, companyId: null, entryDate, direction: "TRANSFER_OUT", amount: parsed.data.amount, remarks, createdById: session.userId, createdAt: postedAt, groupId } });
+    await tx.ownerEntry.create({ data: { ownerId: toOwner.id, companyId: null, entryDate, direction: "TRANSFER_IN", amount: parsed.data.amount, remarks, createdById: session.userId, createdAt: postedAt, groupId } });
+  });
+  await audit(null, "owner.entry.transfer", fromOwner.id, { newValues: { groupId, fromOwnerId: fromOwner.id, toOwnerId: toOwner.id, amount: parsed.data.amount, entryDate: parsed.data.entryDate } });
+  revalidateOwnerAndCompany(fromOwner.id, null);
+  revalidateOwnerAndCompany(toOwner.id, null);
+  return { status: "success", message: `Transfer from ${fromOwner.name} to ${toOwner.name} saved.` };
+}
+
+export async function updateOwnerTransferAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePermission("owners.update");
+  const parsed = updateTransferSchema.safeParse({ entryId: formData.get("entryId"), fromOwnerId: formData.get("fromOwnerId"), toOwnerId: formData.get("toOwnerId"), entryDate: formData.get("entryDate"), entryTime: formData.get("entryTime") || undefined, amount: formData.get("amount"), remarks: formData.get("remarks") || "" });
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
+  if (parsed.data.fromOwnerId === parsed.data.toOwnerId) return { status: "error", message: "Choose two different partners." };
+  const existing = await db.ownerEntry.findUnique({ where: { id: parsed.data.entryId }, include: { owner: { include: { companyLinks: true } } } });
+  if (!existing || existing.deletedAt) return { status: "error", message: "This entry no longer exists." };
+  if (existing.direction !== "TRANSFER_OUT" && existing.direction !== "TRANSFER_IN") return { status: "error", message: "This is not a transfer." };
+  const group = existing.groupId ? await db.ownerEntry.findMany({ where: { groupId: existing.groupId, deletedAt: null }, include: { owner: { include: { companyLinks: true } } } }) : [existing];
+  for (const row of group) await requireOwnerAccess(row.owner);
+  const [fromOwner, toOwner] = await Promise.all([
+    db.owner.findUnique({ where: { id: parsed.data.fromOwnerId }, include: { companyLinks: true } }),
+    db.owner.findUnique({ where: { id: parsed.data.toOwnerId }, include: { companyLinks: true } }),
+  ]);
+  if (!fromOwner || !toOwner) return { status: "error", message: "That partner no longer exists." };
+  await requireOwnerAccess(fromOwner);
+  await requireOwnerAccess(toOwner);
+  const session = await requireSession();
+  const entryDate = new Date(`${parsed.data.entryDate}T00:00:00Z`);
+  const postedAt = entryPostedAt(parsed.data.entryDate, parsed.data.entryTime);
+  const remarks = parsed.data.remarks || null;
+  const groupId = randomUUID();
+  await db.$transaction(async (tx) => {
+    for (const row of group) {
+      if (row.companyId) await applyShareholderPayment(tx, { ownerName: row.owner.name, companyId: row.companyId, entryId: row.id, direction: row.direction === "RECEIVED" ? "RECEIVED" : "PAID", amount: row.amount, entryDate: row.entryDate, remarks: row.remarks, reverse: true });
+      await tx.ownerEntry.update({ where: { id: row.id }, data: { deletedAt: new Date() } });
+    }
+    await tx.ownerEntry.create({ data: { ownerId: fromOwner.id, companyId: null, entryDate, direction: "TRANSFER_OUT", amount: parsed.data.amount, remarks, createdById: session.userId, createdAt: postedAt, groupId } });
+    await tx.ownerEntry.create({ data: { ownerId: toOwner.id, companyId: null, entryDate, direction: "TRANSFER_IN", amount: parsed.data.amount, remarks, createdById: session.userId, createdAt: postedAt, groupId } });
+  });
+  await audit(null, "owner.entry.transfer.update", fromOwner.id, { oldValues: { entryId: existing.id, groupId: existing.groupId }, newValues: { groupId, fromOwnerId: fromOwner.id, toOwnerId: toOwner.id, amount: parsed.data.amount } });
+  for (const row of group) revalidateOwnerAndCompany(row.ownerId, row.companyId);
+  revalidateOwnerAndCompany(fromOwner.id, null);
+  revalidateOwnerAndCompany(toOwner.id, null);
+  return { status: "success", message: `Transfer from ${fromOwner.name} to ${toOwner.name} saved.` };
+}
