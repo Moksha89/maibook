@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { payableShare, signedSettlementShare } from "@/lib/domain/finance";
 import { whole } from "@/lib/format";
 import { singleCompanyPnl } from "@/lib/services/expenses";
+import { partnerSharesForEvents } from "@/lib/services/partner-pnl";
+import { chooseOwner } from "@/lib/services/owner-shareholder-link";
 
 export interface ReportParameters { companyId: string; agentId?: string; startDate: string; endDate: string }
 export interface ReportTable { title: string; subtitle: string; columns: string[]; rows: string[][] }
@@ -41,12 +43,24 @@ export async function loadReportTable(type: ReportType, parameters: ReportParame
     const [pnl, expenses, shareholders] = await Promise.all([
       singleCompanyPnl(parameters.companyId, { start: startDate, end: endDate }),
       db.expense.groupBy({ by: ["category"], where: { companyId: parameters.companyId, deletedAt: null, expenseDate: { gte: startDate, lte: endDate } }, _sum: { amount: true }, _count: true, orderBy: { category: "asc" } }),
-      db.shareholder.findMany({ where: { companyId: parameters.companyId, status: "ACTIVE", deletedAt: null }, select: { name: true, percentage: true }, orderBy: { name: "asc" } }),
+      db.shareholder.findMany({ where: { companyId: parameters.companyId, status: "ACTIVE", deletedAt: null }, select: { name: true, normalizedName: true, percentage: true, createdAt: true }, orderBy: { name: "asc" } }),
+    ]);
+    const names = [...new Set(shareholders.map((shareholder) => shareholder.normalizedName))];
+    const [periodSettlements, periodExpenses, histories, nameOwners] = await Promise.all([
+      db.settlement.findMany({ where: { companyId: parameters.companyId, status: "POSTED", settlementDate: { gte: startDate, lte: endDate } }, select: { createdAt: true, amount: true, absoluteAmount: true, agentShare: true, uplineShare: true, companyShare: true } }),
+      db.expense.findMany({ where: { companyId: parameters.companyId, deletedAt: null, expenseDate: { gte: startDate, lte: endDate } }, select: { createdAt: true, amount: true } }),
+      names.length ? db.ownerShareHistory.findMany({ where: { companyId: parameters.companyId }, orderBy: { effectiveFrom: "asc" } }) : Promise.resolve([]),
+      names.length ? db.owner.findMany({ where: { normalizedName: { in: names } }, include: { companyLinks: { select: { companyId: true } } }, orderBy: { createdAt: "asc" } }) : Promise.resolve([]),
     ]);
     const rows: string[][] = [["Company profit", "Settlements", "", whole(pnl.profit)]];
     for (const row of expenses) rows.push([`Expense: ${row.category}`, `${row._count} entr${row._count === 1 ? "y" : "ies"}`, "", whole(-Number(row._sum.amount ?? 0))]);
     rows.push(["Expenses total", `${pnl.expenseCount} entr${pnl.expenseCount === 1 ? "y" : "ies"}`, "", whole(-pnl.expenses)], ["Final PNL", "Profit - expenses", "", whole(pnl.finalPnl)]);
-    for (const shareholder of shareholders) rows.push([shareholder.name, "Shareholder PNL share", shareholder.percentage.toFixed(2), whole(-(pnl.finalPnl * Number(shareholder.percentage) / 100))]);
+    for (const shareholder of shareholders) {
+      const owner = chooseOwner(nameOwners.filter((row) => row.normalizedName === shareholder.normalizedName), { companyId: parameters.companyId });
+      const history = owner ? histories.filter((row) => row.ownerId === owner.id) : [{ effectiveFrom: shareholder.createdAt, percentage: shareholder.percentage }];
+      const share = partnerSharesForEvents(history.length ? history : [{ effectiveFrom: shareholder.createdAt, percentage: shareholder.percentage }], periodSettlements, periodExpenses);
+      rows.push([shareholder.name, "Shareholder PNL share", shareholder.percentage.toFixed(2), whole(share.pnlShare)]);
+    }
     return { title: "Company PNL Report", subtitle, columns: ["Item", "Detail", "Share %", "Amount"], rows };
   }
   if (type === "PROFIT_DISTRIBUTION") {

@@ -14,7 +14,7 @@ import { normalizeEmail, normalizeName, normalizePhone } from "@/lib/domain/norm
 import { distributeCompanyProfit } from "@/lib/services/profit-distribution";
 import { financialTransaction } from "@/lib/services/financial-transaction";
 import { recalculateNonAgentBalances } from "@/lib/services/ledger";
-import { recordOwnerShare } from "@/lib/services/owner-share-history";
+import { linkOwnerFromShareholder, unlinkOwnerFromShareholder } from "@/lib/services/owner-shareholder-link";
 import { manualUplineEntrySchema, profitDistributionSchema, shareholderSchema, uplineGroupSchema, uplineSchema } from "@/lib/validation/company-workspace";
 import { whole } from "@/lib/format";
 
@@ -107,9 +107,14 @@ export async function createShareholderAction(_: ActionState, formData: FormData
   const parsed = shareholderSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message, fieldErrors: parsed.error.flatten().fieldErrors };
   await requireCompanyAccess(parsed.data.companyId, "FULL");
+  const session = await requireSession();
   try {
-    await db.shareholder.create({ data: { companyId: parsed.data.companyId, name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentage: parsed.data.percentage, phone: parsed.data.phone ? normalizePhone(parsed.data.phone) : null, email: parsed.data.email ? normalizeEmail(parsed.data.email) : null } });
+    await db.$transaction(async (tx) => {
+      const created = await tx.shareholder.create({ data: { companyId: parsed.data.companyId, name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentage: parsed.data.percentage, phone: parsed.data.phone ? normalizePhone(parsed.data.phone) : null, email: parsed.data.email ? normalizeEmail(parsed.data.email) : null } });
+      await linkOwnerFromShareholder(tx, created, session.userId);
+    });
     revalidatePath(`/companies/${parsed.data.companyId}`);
+    revalidatePath("/owners");
     return { status: "success", message: `${parsed.data.name} was added.` };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "A shareholder with this name already exists." };
@@ -135,8 +140,12 @@ export async function assignShareholderAction(_: ActionState, formData: FormData
     select: { phone: true, email: true },
   });
   try {
-    await db.shareholder.create({ data: { companyId: parsed.data.companyId, name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentage: parsed.data.percentage, phone: source?.phone ?? null, email: source?.email ?? null } });
+    await db.$transaction(async (tx) => {
+      const created = await tx.shareholder.create({ data: { companyId: parsed.data.companyId, name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentage: parsed.data.percentage, phone: source?.phone ?? null, email: source?.email ?? null } });
+      await linkOwnerFromShareholder(tx, created, session.userId);
+    });
     revalidatePath(`/companies/${parsed.data.companyId}`);
+    revalidatePath("/owners");
     return { status: "success", message: `${parsed.data.name} was assigned.` };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "This shareholder is already assigned to the company." };
@@ -225,14 +234,10 @@ export async function updateShareholderAction(_: ActionState, formData: FormData
   const percentChanged = !shareholder.percentage.eq(String(parsed.data.percentage));
   try {
     await db.$transaction(async (tx) => {
-      await tx.shareholder.update({ where: { id: shareholder.id }, data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentage: parsed.data.percentage, phone: parsed.data.phone ? normalizePhone(parsed.data.phone) : null, email: parsed.data.email ? normalizeEmail(parsed.data.email) : null } });
-      if (!percentChanged) return;
-      // New % applies only to settlements posted from now on; past amounts keep the % in force when they were posted.
-      const links = await tx.ownerCompany.findMany({ where: { companyId: shareholder.companyId, owner: { normalizedName: shareholder.normalizedName } }, select: { ownerId: true } });
-      for (const link of links) {
-        await tx.ownerCompany.update({ where: { ownerId_companyId: { ownerId: link.ownerId, companyId: shareholder.companyId } }, data: { percentage: parsed.data.percentage } });
-        await recordOwnerShare(tx, link.ownerId, shareholder.companyId, parsed.data.percentage);
-      }
+      const updated = await tx.shareholder.update({ where: { id: shareholder.id }, data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), percentage: parsed.data.percentage, phone: parsed.data.phone ? normalizePhone(parsed.data.phone) : null, email: parsed.data.email ? normalizeEmail(parsed.data.email) : null } });
+      const session = await requireSession();
+      if (updated.normalizedName !== shareholder.normalizedName) await unlinkOwnerFromShareholder(tx, shareholder.companyId, shareholder.normalizedName);
+      await linkOwnerFromShareholder(tx, updated, session.userId);
     });
   }
   catch (error) {
@@ -242,7 +247,7 @@ export async function updateShareholderAction(_: ActionState, formData: FormData
   }
   await auditCompany(shareholder.companyId, "shareholder.update", "Shareholder", shareholder.id, { oldValues: { name: shareholder.name, percentage: shareholder.percentage.toString() }, newValues: { name: parsed.data.name, percentage: parsed.data.percentage } });
   revalidatePath(`/companies/${shareholder.companyId}`);
-  revalidatePath("/owners", "layout");
+  revalidatePath("/owners");
   return { status: "success", message: percentChanged ? "Shareholder updated. The new share applies to settlements from now on." : "Shareholder updated." };
 }
 
@@ -268,9 +273,13 @@ export async function deleteShareholderAction(_: ActionState, formData: FormData
   await requireCompanyAccess(shareholder.companyId, "FULL");
   if (shareholder._count.entries) return { status: "error", message: "This shareholder has profit entries and cannot be removed. Deactivate it instead." };
   if (!shareholder.currentBalance.isZero()) return { status: "error", message: "Clear the balance before removing this shareholder." };
-  await db.shareholder.update({ where: { id: shareholder.id }, data: { deletedAt: new Date(), status: "INACTIVE", normalizedName: `${shareholder.normalizedName}~deleted-${shareholder.id.slice(0, 8)}` } });
+  await db.$transaction(async (tx) => {
+    await unlinkOwnerFromShareholder(tx, shareholder.companyId, shareholder.normalizedName);
+    await tx.shareholder.update({ where: { id: shareholder.id }, data: { deletedAt: new Date(), status: "INACTIVE", normalizedName: `${shareholder.normalizedName}~deleted-${shareholder.id.slice(0, 8)}` } });
+  });
   await auditCompany(shareholder.companyId, "shareholder.delete", "Shareholder", shareholder.id, { oldValues: { name: shareholder.name } });
   revalidatePath(`/companies/${shareholder.companyId}`);
+  revalidatePath("/owners");
   return { status: "success", message: `${shareholder.name} was removed.` };
 }
 
@@ -281,13 +290,10 @@ export async function unassignShareholderAction(_: ActionState, formData: FormDa
   if (!shareholder) return { status: "error", message: "This shareholder no longer exists." };
   await requireCompanyAccess(shareholder.companyId, "FULL");
   if (!shareholder.currentBalance.isZero()) return { status: "error", message: "Clear the balance before unassigning this shareholder." };
-  const links = await db.ownerCompany.findMany({ where: { companyId: shareholder.companyId }, select: { ownerId: true, owner: { select: { name: true } } } });
-  const linkIds = links.filter((link) => normalizeName(link.owner.name) === shareholder.normalizedName).map((link) => link.ownerId);
-  await db.$transaction([
-    db.shareholder.update({ where: { id: shareholder.id }, data: { deletedAt: new Date(), status: "INACTIVE", normalizedName: `${shareholder.normalizedName}~deleted-${shareholder.id.slice(0, 8)}` } }),
-    db.ownerCompany.deleteMany({ where: { companyId: shareholder.companyId, ownerId: { in: linkIds } } }),
-    ...linkIds.map((ownerId) => db.ownerShareHistory.create({ data: { ownerId, companyId: shareholder.companyId, percentage: 0 } })),
-  ]);
+  await db.$transaction(async (tx) => {
+    await unlinkOwnerFromShareholder(tx, shareholder.companyId, shareholder.normalizedName);
+    await tx.shareholder.update({ where: { id: shareholder.id }, data: { deletedAt: new Date(), status: "INACTIVE", normalizedName: `${shareholder.normalizedName}~deleted-${shareholder.id.slice(0, 8)}` } });
+  });
   await auditCompany(shareholder.companyId, "shareholder.unassign", "Shareholder", shareholder.id, { oldValues: { name: shareholder.name, percentage: shareholder.percentage.toString() } });
   revalidatePath(`/companies/${shareholder.companyId}`);
   revalidatePath("/owners");

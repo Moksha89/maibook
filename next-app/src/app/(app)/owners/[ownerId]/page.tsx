@@ -35,38 +35,46 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
   ]);
   if (!owner) notFound();
   const accessibleIds = new Set(accessible.map((company) => company.id));
-  if (!superAdmin && owner.createdById !== session.userId && !owner.companyLinks.some((link) => accessibleIds.has(link.companyId))) notFound();
+  const shareholders = await db.shareholder.findMany({ where: { deletedAt: null, normalizedName: owner.normalizedName, companyId: { in: [...accessibleIds] } }, include: { company: { select: { id: true, name: true } } }, orderBy: { company: { name: "asc" } } });
+  const historyAll = await db.ownerShareHistory.findMany({ where: { ownerId: owner.id, companyId: { in: [...accessibleIds] } }, orderBy: { effectiveFrom: "asc" } });
+  const companyIds = new Set<string>([
+    ...owner.companyLinks.filter((link) => accessibleIds.has(link.companyId)).map((link) => link.companyId),
+    ...shareholders.map((shareholder) => shareholder.companyId),
+    ...historyAll.map((row) => row.companyId),
+  ]);
+  if (!superAdmin && owner.createdById !== session.userId && !companyIds.size) notFound();
 
-  const links = owner.companyLinks.filter((link) => accessibleIds.has(link.companyId));
-  const settlements = links.length ? await db.settlement.findMany({ where: { companyId: { in: links.map((link) => link.companyId) }, status: "POSTED" }, select: { id: true, companyId: true, createdAt: true, settlementDate: true, remarks: true, amount: true, absoluteAmount: true, agentShare: true, uplineShare: true, companyShare: true, identifier: { select: { value: true } } } }) : [];
-  const expenses = links.length ? await db.expense.findMany({ where: { companyId: { in: links.map((link) => link.companyId) }, deletedAt: null }, select: { id: true, companyId: true, createdAt: true, expenseDate: true, category: true, remarks: true, amount: true } }) : [];
-  const history = links.length ? await db.ownerShareHistory.findMany({ where: { ownerId: owner.id, companyId: { in: links.map((link) => link.companyId) } }, orderBy: { effectiveFrom: "asc" } }) : [];
+  const companyRecords = companyIds.size ? await db.company.findMany({ where: { id: { in: [...companyIds] } }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : [];
+  const settlements = companyIds.size ? await db.settlement.findMany({ where: { companyId: { in: [...companyIds] }, status: "POSTED" }, select: { id: true, companyId: true, createdAt: true, settlementDate: true, remarks: true, amount: true, absoluteAmount: true, agentShare: true, uplineShare: true, companyShare: true, identifier: { select: { value: true } } } }) : [];
+  const expenses = companyIds.size ? await db.expense.findMany({ where: { companyId: { in: [...companyIds] }, deletedAt: null }, select: { id: true, companyId: true, createdAt: true, expenseDate: true, category: true, remarks: true, amount: true } }) : [];
   const settlementRows: { id: string; date: Date; createdAt: Date; companyName: string; idValue: string; remarks: string; amount: number; ownerShare: number }[] = [];
-  const companies = links.map((link) => {
-    const percentage = Number(link.percentage.toString());
-    const linkHistory = history.filter((row) => row.companyId === link.companyId);
+  const companies = companyRecords.map((company) => {
+    const shareholder = shareholders.find((row) => row.companyId === company.id && row.status === "ACTIVE") ?? shareholders.find((row) => row.companyId === company.id);
+    const link = owner.companyLinks.find((row) => row.companyId === company.id);
+    const percentage = Number((shareholder ?? link)?.percentage.toString() ?? 0);
+    const linkHistory = historyAll.filter((row) => row.companyId === company.id);
     let companyProfit = 0;
     let ownerProfit = 0;
-    // Each settlement uses the share % in force when it was posted, so editing a % never changes past amounts.
-    for (const row of settlements.filter((item) => item.companyId === link.companyId)) {
+    // Each settlement uses the share % in force when it was posted. Settlements before the partner joined count as 0.
+    for (const row of settlements.filter((item) => item.companyId === company.id)) {
       const profit = Number(summarizeSettlementProfit([{ amount: row.amount.toString(), absoluteAmount: row.absoluteAmount.toString(), agentShare: row.agentShare.toString(), uplineShare: row.uplineShare.toString(), companyShare: row.companyShare.toString() }]).companyProfit.toString());
       companyProfit += profit;
-      const share = -((profit * shareAt(linkHistory, row.createdAt, percentage)) / 100) || 0;
+      const share = -((profit * shareAt(linkHistory, row.createdAt, 0)) / 100) || 0;
       ownerProfit += share;
-      settlementRows.push({ id: row.id, date: row.settlementDate, createdAt: row.createdAt, companyName: link.company.name, idValue: row.identifier.value, remarks: row.remarks ?? "", amount: Number(row.amount.toString()), ownerShare: share });
+      settlementRows.push({ id: row.id, date: row.settlementDate, createdAt: row.createdAt, companyName: company.name, idValue: row.identifier.value, remarks: row.remarks ?? "", amount: Number(row.amount.toString()), ownerShare: share });
     }
-    // Final PNL = company profit - expenses: each expense is charged at the share % in force when it was entered.
     let companyExpenses = 0;
-    for (const row of expenses.filter((item) => item.companyId === link.companyId)) {
+    for (const row of expenses.filter((item) => item.companyId === company.id)) {
       const amount = Number(row.amount.toString());
-      const share = (amount * shareAt(linkHistory, row.createdAt, percentage)) / 100;
+      const share = (amount * shareAt(linkHistory, row.createdAt, 0)) / 100;
       companyExpenses += amount;
       ownerProfit += share;
-      settlementRows.push({ id: row.id, date: row.expenseDate, createdAt: row.createdAt, companyName: link.company.name, idValue: "-", remarks: `EXPENSE ${row.category}${row.remarks ? `: ${row.remarks}` : ""}`, amount: -amount, ownerShare: share });
+      settlementRows.push({ id: row.id, date: row.expenseDate, createdAt: row.createdAt, companyName: company.name, idValue: "-", remarks: `EXPENSE ${row.category}${row.remarks ? `: ${row.remarks}` : ""}`, amount: -amount, ownerShare: share });
     }
-    return { id: link.companyId, name: link.company.name, percentage, companyProfit, companyExpenses, finalPnl: companyProfit - companyExpenses, ownerProfit };
+    return { id: company.id, name: company.name, percentage, companyProfit, companyExpenses, finalPnl: companyProfit - companyExpenses, ownerProfit };
   });
-  const free = accessible.filter((company) => !owner.companyLinks.some((link) => link.companyId === company.id));
+  const assignedIds = new Set([...owner.companyLinks.map((link) => link.companyId), ...shareholders.filter((row) => row.status === "ACTIVE" && !row.deletedAt).map((row) => row.companyId)]);
+  const free = accessible.filter((company) => !assignedIds.has(company.id));
   const entries = owner.entries.filter((entry) => !entry.companyId || accessibleIds.has(entry.companyId) || superAdmin);
   const totalProfit = companies.reduce((sum, row) => sum + row.ownerProfit, 0);
   settlementRows.sort((x, y) => y.date.getTime() - x.date.getTime() || y.createdAt.getTime() - x.createdAt.getTime());

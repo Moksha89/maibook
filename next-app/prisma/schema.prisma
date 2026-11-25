@@ -395,9 +395,10 @@ model Agent {
   deletedById      String?                @map("deleted_by_id") @db.Uuid
   companies        CompanyAgent[]
   ledgerLines      LedgerEntryLine[]
-  identifiers      AgentIdentifier[]
-  settlements      Settlement[]
-  ownerAssignments OwnerAgentAssignment[]
+  identifiers       AgentIdentifier[]
+  settlements       Settlement[]
+  ownerAssignments  OwnerAgentAssignment[]
+  agentAssignments  IdentifierAgentAssignment[]
 
   @@index([normalizedName])
   @@map("agents")
@@ -488,8 +489,10 @@ model AgentIdentifier {
   deletedById     String?        @map("deleted_by_id") @db.Uuid
   company         Company?       @relation(fields: [companyId], references: [id], onDelete: Restrict)
   agent           Agent?         @relation(fields: [agentId], references: [id], onDelete: Restrict)
-  site            Site?          @relation(fields: [siteId], references: [id], onDelete: SetNull)
-  settlements     Settlement[]
+  site             Site?                        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  settlements      Settlement[]
+  shareHistory     IdentifierShareHistory[]
+  agentAssignments IdentifierAgentAssignment[]
 
   @@unique([siteId, normalizedValue])
   @@index([agentId, status])
@@ -895,17 +898,47 @@ model Job {
 
 /// Share % in force for an owner in a company from effectiveFrom onward. Past settlements keep the % that applied when they were posted.
 model OwnerShareHistory {
-  id            String   @id @default(uuid()) @db.Uuid
-  ownerId       String   @map("owner_id") @db.Uuid
-  companyId     String   @map("company_id") @db.Uuid
-  percentage    Decimal  @db.Decimal(7, 4)
-  effectiveFrom DateTime @default(now()) @map("effective_from") @db.Timestamptz(6)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  owner         Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id            String    @id @default(uuid()) @db.Uuid
+  ownerId       String    @map("owner_id") @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  percentage    Decimal   @db.Decimal(7, 4)
+  effectiveFrom DateTime  @default(now()) @map("effective_from") @db.Timestamptz(6)
+  effectiveTo   DateTime? @map("effective_to") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  owner         Owner     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([ownerId, companyId, effectiveFrom])
   @@map("owner_share_history")
+}
+
+/// Configured ID/agent % in force over a period. Posted settlements keep the % snapshotted when they were posted.
+model IdentifierShareHistory {
+  id            String          @id @default(uuid()) @db.Uuid
+  identifierId  String          @map("identifier_id") @db.Uuid
+  percentage    Decimal         @db.Decimal(7, 4)
+  effectiveFrom DateTime        @default(now()) @map("effective_from") @db.Timestamptz(6)
+  effectiveTo   DateTime?       @map("effective_to") @db.Timestamptz(6)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  identifier    AgentIdentifier @relation(fields: [identifierId], references: [id], onDelete: Cascade)
+
+  @@index([identifierId, effectiveFrom])
+  @@map("identifier_share_history")
+}
+
+/// Agent assigned to an ID over a period. Posted settlements and ledger lines keep the agent snapshotted when they were posted.
+model IdentifierAgentAssignment {
+  id            String          @id @default(uuid()) @db.Uuid
+  identifierId  String          @map("identifier_id") @db.Uuid
+  agentId       String          @map("agent_id") @db.Uuid
+  effectiveFrom DateTime        @default(now()) @map("effective_from") @db.Timestamptz(6)
+  effectiveTo   DateTime?       @map("effective_to") @db.Timestamptz(6)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  identifier    AgentIdentifier @relation(fields: [identifierId], references: [id], onDelete: Cascade)
+  agent         Agent           @relation(fields: [agentId], references: [id], onDelete: Restrict)
+
+  @@index([identifierId, effectiveFrom])
+  @@map("identifier_agent_assignments")
 }
 
 model Site {
