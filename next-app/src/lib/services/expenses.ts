@@ -22,12 +22,13 @@ export function todayIstDate() {
   return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
 }
 
-/** Charges an expense to the company's active shareholders by percentage (negative entries) and updates their balances. */
+/** Charges an expense to the company's active shareholders by percentage (positive entries, which reduce a payable balance) and updates their balances. */
 async function chargeShareholders(tx: Tx, expense: { id: string; companyId: string; amount: Prisma.Decimal; expenseDate: Date; category: string; remarks: string | null }) {
   const shareholders = await tx.shareholder.findMany({ where: { companyId: expense.companyId, status: "ACTIVE", deletedAt: null }, orderBy: { name: "asc" } });
   if (!shareholders.length) return 0;
-  const charge = decimal(expense.amount.toString()).neg();
-  const allocations = allocateShareholderProfit(charge, shareholders.map((shareholder) => ({ shareholderId: shareholder.id, percentage: shareholder.percentage.toString() })));
+  const expenseAmount = decimal(expense.amount.toString());
+  const companyImpact = expenseAmount.neg();
+  const allocations = allocateShareholderProfit(expenseAmount, shareholders.map((shareholder) => ({ shareholderId: shareholder.id, percentage: shareholder.percentage.toString() })));
   const version = Date.now().toString(36);
   for (const allocation of allocations) {
     await tx.shareholderEntry.create({
@@ -38,7 +39,7 @@ async function chargeShareholders(tx: Tx, expense: { id: string; companyId: stri
         distributionKey: `expense:${expense.id}:${version}:${allocation.shareholderId}`,
         source: "EXPENSE",
         entryDate: expense.expenseDate,
-        companyProfit: new Prisma.Decimal(charge.toString()),
+        companyProfit: new Prisma.Decimal(companyImpact.toString()),
         percentage: new Prisma.Decimal(allocation.percentage.toString()),
         amount: new Prisma.Decimal(allocation.amount.toString()),
         remarks: `Expense ${expense.category}${expense.remarks ? `: ${expense.remarks}` : ""}`.slice(0, 500),

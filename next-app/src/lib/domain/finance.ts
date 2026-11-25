@@ -74,6 +74,11 @@ export function signedSettlementShare(amount: DecimalInput, share: DecimalInput)
   return decimal(share).abs().mul(settlementSign(amount));
 }
 
+/** Payable to an upline or partner: negative when the company owes them (a profit settlement), positive when they owe the company (a loss). */
+export function payableShare(amount: DecimalInput, share: DecimalInput) {
+  return signedSettlementShare(amount, share).neg();
+}
+
 /** Signed totals for a set of posted settlements: losses reduce profit. */
 export function summarizeSettlementProfit(rows: { amount: DecimalInput; absoluteAmount: DecimalInput; agentShare: DecimalInput; uplineShare: DecimalInput }[]) {
   let total = decimal(0);

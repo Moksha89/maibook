@@ -45,7 +45,7 @@ export function SettlementFormBody({ companies, initialIdempotencyKey }: { compa
   const absolute = Math.abs(amount || 0);
   const agentShare = round(round(absolute * applied / 100) * sign);
   const uplinePercent = identifier?.sitePercentage != null ? Number(identifier.sitePercentage) : Number(upline?.percentageRate ?? 0);
-  const uplineShare = round(round(absolute * uplinePercent / 100) * sign);
+  const uplineShare = round(round(absolute * uplinePercent / 100) * -sign);
   const companyShare = round(absolute * sign - uplineShare - agentShare);
   const agentBalance = Number(identifier?.agentBalance ?? 0);
   const agentEntry = identifier?.type === "SUB_AGENT" ? agentShare : -agentShare;

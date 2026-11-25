@@ -2,7 +2,7 @@ import "server-only";
 
 import { ReportType } from "@prisma/client";
 import { db } from "@/lib/db";
-import { signedSettlementShare } from "@/lib/domain/finance";
+import { payableShare, signedSettlementShare } from "@/lib/domain/finance";
 import { whole } from "@/lib/format";
 import { singleCompanyPnl } from "@/lib/services/expenses";
 
@@ -20,7 +20,7 @@ export async function loadReportTable(type: ReportType, parameters: ReportParame
   const subtitle = `${company.name} · ${fmtDate(startDate)} to ${fmtDate(endDate)}`;
   if (type === "SETTLEMENT") {
     const records = await db.settlement.findMany({ where: { companyId: parameters.companyId, status: "POSTED", settlementDate: { gte: startDate, lte: endDate } }, include: { identifier: { select: { value: true } }, agent: { select: { name: true } } }, orderBy: [{ settlementDate: "asc" }, { createdAt: "asc" }] });
-    return { title: "Settlement Report", subtitle, columns: ["Date", "ID", "Agent", "Amount", "Agent %", "Agent Share", "Upline Share", "Company Share", "Status"], rows: records.map((record) => [fmtDate(record.settlementDate), record.identifier.value, record.agent.name, whole(record.amount), record.agentPercentage.toFixed(2), whole(signedSettlementShare(record.amount, record.agentShare)), whole(signedSettlementShare(record.amount, record.uplineShare)), whole(signedSettlementShare(record.amount, record.companyShare)), record.status]) };
+    return { title: "Settlement Report", subtitle, columns: ["Date", "ID", "Agent", "Amount", "Agent %", "Agent Share", "Upline Share", "Company Share", "Status"], rows: records.map((record) => [fmtDate(record.settlementDate), record.identifier.value, record.agent.name, whole(record.amount), record.agentPercentage.toFixed(2), whole(signedSettlementShare(record.amount, record.agentShare)), whole(payableShare(record.amount, record.uplineShare)), whole(signedSettlementShare(record.amount, record.companyShare)), record.status]) };
   }
   if (type === "UPLINE") {
     const records = await db.uplineEntry.findMany({ where: { companyId: parameters.companyId, deletedAt: null, entryDate: { gte: startDate, lte: endDate } }, include: { upline: { select: { name: true } } }, orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }] });
@@ -46,7 +46,7 @@ export async function loadReportTable(type: ReportType, parameters: ReportParame
     const rows: string[][] = [["Company profit", "Settlements", "", whole(pnl.profit)]];
     for (const row of expenses) rows.push([`Expense: ${row.category}`, `${row._count} entr${row._count === 1 ? "y" : "ies"}`, "", whole(-Number(row._sum.amount ?? 0))]);
     rows.push(["Expenses total", `${pnl.expenseCount} entr${pnl.expenseCount === 1 ? "y" : "ies"}`, "", whole(-pnl.expenses)], ["Final PNL", "Profit - expenses", "", whole(pnl.finalPnl)]);
-    for (const shareholder of shareholders) rows.push([shareholder.name, "Shareholder PNL share", shareholder.percentage.toFixed(2), whole(pnl.finalPnl * Number(shareholder.percentage) / 100)]);
+    for (const shareholder of shareholders) rows.push([shareholder.name, "Shareholder PNL share", shareholder.percentage.toFixed(2), whole(-(pnl.finalPnl * Number(shareholder.percentage) / 100))]);
     return { title: "Company PNL Report", subtitle, columns: ["Item", "Detail", "Share %", "Amount"], rows };
   }
   if (type === "PROFIT_DISTRIBUTION") {

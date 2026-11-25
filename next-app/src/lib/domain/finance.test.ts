@@ -9,6 +9,7 @@ import {
   effectiveAgentPercentage,
   settlementSign,
   signedSettlementShare,
+  payableShare,
   summarizeSettlementProfit,
   recalculateRunningBalances,
   splitCreditDebit,
@@ -98,6 +99,11 @@ describe("agent and sub agent settlement rules", () => {
     expect(settlementSign(0)).toBe(1);
     expect(settlementSign(-0.01)).toBe(-1);
     expect(signedSettlementShare(-50, 12.5).toString()).toBe("-12.5");
+  });
+
+  it("payable share is negative when the company owes the upline or partner", () => {
+    expect(payableShare(100000, 20000).toString()).toBe("-20000");
+    expect(payableShare(-100000, 20000).toString()).toBe("20000");
   });
 });
 

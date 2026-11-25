@@ -51,7 +51,7 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
     for (const row of settlements.filter((item) => item.companyId === link.companyId)) {
       const profit = Number(summarizeSettlementProfit([{ amount: row.amount.toString(), absoluteAmount: row.absoluteAmount.toString(), agentShare: row.agentShare.toString(), uplineShare: row.uplineShare.toString() }]).companyProfit.toString());
       companyProfit += profit;
-      const share = (profit * shareAt(linkHistory, row.createdAt, percentage)) / 100;
+      const share = -((profit * shareAt(linkHistory, row.createdAt, percentage)) / 100);
       ownerProfit += share;
       settlementRows.push({ id: row.id, date: row.settlementDate, createdAt: row.createdAt, companyName: link.company.name, idValue: row.identifier.value, remarks: row.remarks ?? "", amount: Number(row.amount.toString()), ownerShare: share });
     }
@@ -61,8 +61,8 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
       const amount = Number(row.amount.toString());
       const share = (amount * shareAt(linkHistory, row.createdAt, percentage)) / 100;
       companyExpenses += amount;
-      ownerProfit -= share;
-      settlementRows.push({ id: row.id, date: row.expenseDate, createdAt: row.createdAt, companyName: link.company.name, idValue: "-", remarks: `EXPENSE ${row.category}${row.remarks ? `: ${row.remarks}` : ""}`, amount: -amount, ownerShare: -share });
+      ownerProfit += share;
+      settlementRows.push({ id: row.id, date: row.expenseDate, createdAt: row.createdAt, companyName: link.company.name, idValue: "-", remarks: `EXPENSE ${row.category}${row.remarks ? `: ${row.remarks}` : ""}`, amount: -amount, ownerShare: share });
     }
     return { id: link.companyId, name: link.company.name, percentage, companyProfit, companyExpenses, finalPnl: companyProfit - companyExpenses, ownerProfit };
   });
@@ -72,7 +72,7 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
   settlementRows.sort((x, y) => y.date.getTime() - x.date.getTime() || y.createdAt.getTime() - x.createdAt.getTime());
   const paid = entries.filter((entry) => entry.direction === "PAID").reduce((sum, entry) => sum + Number(entry.amount.toString()), 0);
   const received = entries.filter((entry) => entry.direction === "RECEIVED").reduce((sum, entry) => sum + Number(entry.amount.toString()), 0);
-  const balance = totalProfit - paid + received;
+  const balance = totalProfit + paid - received;
   const phone = owner.phoneNumbers.map((item) => item.phone).join(", ");
   const stat = (label: string, value: number, className = "") => <div className="rounded-lg border bg-white px-3 py-2"><p className="text-[10px] font-bold uppercase tracking-wide text-[#647386]">{label}</p><p className={`mt-0.5 font-mono text-sm font-semibold ${className}`}>{money(value)}</p></div>;
 

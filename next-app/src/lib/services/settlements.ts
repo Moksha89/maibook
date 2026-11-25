@@ -3,7 +3,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 
 import { financialTransaction } from "@/lib/services/financial-transaction";
-import { calculateSettlement, decimal, effectiveAgentPercentage, splitCreditDebit } from "@/lib/domain/finance";
+import { calculateSettlement, decimal, effectiveAgentPercentage, payableShare, splitCreditDebit } from "@/lib/domain/finance";
 import { recalculateAgentBalances, recalculateNonAgentBalances } from "@/lib/services/ledger";
 
 export interface PostSettlementInput {
@@ -55,7 +55,8 @@ export async function postSettlement(input: PostSettlementInput) {
       const calculation = calculateSettlement(amount, appliedAgentPercentage, uplinePercentage);
       const direction = amount.isNegative() ? -1 : 1;
       const signedAgentShare = calculation.agentShare.mul(direction);
-      const signedUplineShare = calculation.uplineShare.mul(direction);
+      // Payable convention (same as the agent ledger): a profit settlement stores a negative upline amount — the company owes them.
+      const signedUplineShare = payableShare(amount, calculation.uplineShare);
       const signedCompanyProfit = calculation.companyProfit.mul(direction);
       // Agent ledger line: coins are the settlement amount, the rate is the applied agent %. Regular IDs flip the sign (a positive settlement gives the agent a negative balance: company owes agent);
       // SubAgent IDs keep it (a positive settlement gives a positive balance: agent owes company).

@@ -7,6 +7,7 @@ import { FormModal } from "@/components/ui/form-modal";
 import { PageHeader } from "@/components/ui/page-header";
 import { hasPermission, requireGroupAccess, requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
+import { payableShare } from "@/lib/domain/finance";
 import { dayStamp, whole } from "@/lib/format";
 import { assignSiteGroupAction } from "../../sites/actions";
 import { AssignSiteToGroupBody, SiteFormBody } from "../../sites/site-forms";
@@ -28,8 +29,7 @@ export default async function UplineGroupPage({ params, searchParams }: { params
     db.site.findMany({ where: { uplineGroupId: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   const entries = await db.settlement.findMany({ where: { status: "POSTED", identifier: { site: { uplineGroupId: groupId } } }, include: { identifier: { select: { value: true, site: { select: { name: true } } } }, company: { select: { name: true } }, agent: { select: { name: true } } }, orderBy: [{ settlementDate: "desc" }, { createdAt: "desc" }], take: 500 });
-  const signed = (amount: { isNegative(): boolean }, value: unknown) => (amount.isNegative() ? -1 : 1) * Math.abs(Number(value));
-  const earned = entries.reduce((sum, row) => sum + signed(row.amount, row.uplineShare), 0);
+  const earned = entries.reduce((sum, row) => sum + Number(payableShare(row.amount, row.uplineShare).toString()), 0);
   const tabClass = (active: boolean) => `rounded-full border px-3 py-1.5 text-xs font-semibold ${active ? "border-[#e0b44a] bg-[#fff4d7] text-[#71500d]" : "bg-white text-[#3b4d63]"}`;
   const totalPct = group.sites.reduce((sum, site) => sum + Number(site.uplinePercentage), 0);
   const avgPct = group.sites.length ? totalPct / group.sites.length : 0;
@@ -47,7 +47,7 @@ export default async function UplineGroupPage({ params, searchParams }: { params
     <div className="mb-2 flex gap-2"><Link prefetch={false} href={`/upline-groups/${group.id}`} className={tabClass(tab === "sites")}>Sites ({group.sites.length})</Link><Link prefetch={false} href={`/upline-groups/${group.id}?tab=entries`} className={tabClass(tab === "entries")}>Entries ({entries.length})</Link></div>
     {tab === "entries" ? <section className="overflow-hidden rounded-lg border bg-white"><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs">
       <thead className="bg-[#ffeebb] text-[#152235]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">ID</th><th className="px-3 py-2">Site</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">Agent</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Upline %</th><th className="px-3 py-2 text-right">Upline share</th></tr></thead>
-      <tbody>{entries.map((row) => <tr key={row.id} className={`cursor-default border-t border-white hover:brightness-95 ${Number(row.amount) < 0 ? "bg-[#f8d7da]" : "bg-[#fff3cd]"}`}><td className="whitespace-nowrap px-3 py-2">{dayStamp(row.settlementDate, row.createdAt)}</td><td className="px-3 py-2 font-semibold">{row.identifier.value}</td><td className="px-3 py-2">{row.identifier.site?.name ?? "-"}</td><td className="px-3 py-2">{row.company.name}</td><td className="px-3 py-2">{row.agent.name}</td><td className="px-3 py-2 text-right font-mono">{whole(row.amount)}</td><td className="px-3 py-2 text-right font-mono">{row.uplinePercentage.toFixed(2)}%</td><td className="px-3 py-2 text-right font-mono font-semibold">{whole(signed(row.amount, row.uplineShare))}</td></tr>)}</tbody>
+      <tbody>{entries.map((row) => <tr key={row.id} className={`cursor-default border-t border-white hover:brightness-95 ${Number(row.amount) < 0 ? "bg-[#f8d7da]" : "bg-[#fff3cd]"}`}><td className="whitespace-nowrap px-3 py-2">{dayStamp(row.settlementDate, row.createdAt)}</td><td className="px-3 py-2 font-semibold">{row.identifier.value}</td><td className="px-3 py-2">{row.identifier.site?.name ?? "-"}</td><td className="px-3 py-2">{row.company.name}</td><td className="px-3 py-2">{row.agent.name}</td><td className="px-3 py-2 text-right font-mono">{whole(row.amount)}</td><td className="px-3 py-2 text-right font-mono">{row.uplinePercentage.toFixed(2)}%</td><td className="px-3 py-2 text-right font-mono font-semibold">{whole(payableShare(row.amount, row.uplineShare))}</td></tr>)}</tbody>
     </table></div>{!entries.length ? <p className="px-3 py-8 text-center text-xs text-[#647386]">No settlements yet.</p> : null}</section> : null}
     {tab === "sites" ? <section className="overflow-hidden rounded-lg border bg-white"><div className="overflow-x-auto"><table className="w-full min-w-[420px] text-left text-xs">
       <thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2">Site</th><th className="px-3 py-2">Upline %</th>{canEdit ? <th className="px-3 py-2 text-right">Actions</th> : null}</tr></thead>

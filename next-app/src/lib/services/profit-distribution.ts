@@ -48,11 +48,11 @@ export async function distributeCompanyProfit(input: DistributeProfitInput) {
           periodEnd: input.periodEnd,
           companyProfit: new Prisma.Decimal(companyProfit.toString()),
           percentage: new Prisma.Decimal(allocation.percentage.toString()),
-          amount: new Prisma.Decimal(allocation.amount.toString()),
+          amount: new Prisma.Decimal(allocation.amount.neg().toString()),
           remarks: `Settlement profit distribution for ${period}`,
         },
       });
-      await tx.shareholder.update({ where: { id: allocation.shareholderId }, data: { currentBalance: { increment: new Prisma.Decimal(allocation.amount.toString()) } } });
+      await tx.shareholder.update({ where: { id: allocation.shareholderId }, data: { currentBalance: { increment: new Prisma.Decimal(allocation.amount.neg().toString()) } } });
     }
     await tx.settlement.updateMany({ where: { id: { in: settlements.map((settlement) => settlement.id) } }, data: { profitDistributedAt: new Date() } });
     await tx.auditLog.create({ data: { actorId: input.actorId, companyId: input.companyId, action: "shareholder.profit.distribute", entityType: "Company", entityId: input.companyId, requestId: input.requestId, newValues: { period, totalSettlements: totalSettlements.toString(), agentShare: agentShare.toString(), uplineShare: uplineShare.toString(), companyProfit: companyProfit.toString(), allocationCount: allocations.length } } });
