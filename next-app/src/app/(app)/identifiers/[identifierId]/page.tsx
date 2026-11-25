@@ -1,4 +1,5 @@
-﻿import type { Metadata } from "next";
+﻿import { isUuid } from "@/lib/validation/common";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
@@ -17,6 +18,7 @@ export const metadata: Metadata = { title: "ID" };
 export default async function IdentifierPage({ params }: { params: Promise<{ identifierId: string }> }) {
   await requirePermission("identifiers.read");
   const { identifierId } = await params;
+  if (!isUuid(identifierId)) notFound();
   if (!/^[0-9a-f-]{36}$/i.test(identifierId)) notFound();
   const session = await requireSession();
   const superAdmin = session.user.roles.some(({ role }) => role.key === "superadmin");

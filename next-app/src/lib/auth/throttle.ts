@@ -7,9 +7,15 @@ import { hashToken } from "./crypto";
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
+/** Per-account limit across all IPs: higher than the per-IP limit so one attacker cannot lock a user out with a handful of tries. */
+export const ACCOUNT_MAX_ATTEMPTS = 20;
 
 export function throttleKey(identifier: string, ipAddress: string) {
   return hashToken(`${identifier}:${ipAddress}`);
+}
+
+export function accountThrottleKey(identifier: string) {
+  return hashToken(`account:${identifier}`);
 }
 
 export async function assertLoginAllowed(keyHash: string) {
@@ -19,14 +25,14 @@ export async function assertLoginAllowed(keyHash: string) {
   }
 }
 
-export async function recordLoginFailure(keyHash: string) {
+export async function recordLoginFailure(keyHash: string, maxAttempts = MAX_ATTEMPTS) {
   await db.$transaction(
     async (tx) => {
       const now = new Date();
       const existing = await tx.loginThrottle.findUnique({ where: { keyHash } });
       const windowExpired = !existing || now.getTime() - existing.windowStart.getTime() > WINDOW_MS;
       const attempts = windowExpired ? 1 : existing.attempts + 1;
-      const lockedUntil = attempts >= MAX_ATTEMPTS ? new Date(now.getTime() + WINDOW_MS) : null;
+      const lockedUntil = attempts >= maxAttempts ? new Date(now.getTime() + WINDOW_MS) : null;
 
       await tx.loginThrottle.upsert({
         where: { keyHash },

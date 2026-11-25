@@ -44,7 +44,7 @@ describe("financial calculations", () => {
     const result = calculateSettlement(-1000, 15, 5);
     expect(result.absoluteAmount.toString()).toBe("1000");
     expect(result.agentShare.toString()).toBe("150");
-    expect(result.companyShare.toString()).toBe("850");
+    expect(result.companyShare.toString()).toBe("800"); // company keeps the remainder after upline and agent shares
     expect(result.uplineShare.toString()).toBe("50");
     expect(result.companyProfit.toString()).toBe("800");
   });

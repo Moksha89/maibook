@@ -51,16 +51,19 @@ export function QuickEntryBar({ companies, remarkOptions, initialIdempotencyKey,
   const received = amount > 0;
   const idempotencyKey = state.data?.idempotencyKey ?? initialIdempotencyKey;
 
-  useEffect(() => { setRate(company?.defaultRate ?? ""); setAgentChoice((current) => (company?.agents.some((agent) => agent.id === current) ? current : "")); }, [company]);
-  const handled = useRef(state);
-  useEffect(() => {
-    if (state.status !== "success" || handled.current === state) return;
-    handled.current = state;
-    const newRemark = remarks.trim();
-    if (newRemark) setSavedRemarks((current) => [newRemark, ...current.filter((item) => item !== newRemark)]);
-    setName(""); setCoins(""); setRemarks(""); setRate(company?.defaultRate ?? ""); setClientError("");
-    nameRef.current?.focus();
-  }, [state, company]);
+  // Derived resets run during render (React's "adjust state on prop change" pattern), not as setState inside effects.
+  const [seenCompany, setSeenCompany] = useState(company);
+  if (seenCompany !== company) { setSeenCompany(company); setRate(company?.defaultRate ?? ""); setAgentChoice((current) => (company?.agents.some((agent) => agent.id === current) ? current : "")); }
+  const [seenState, setSeenState] = useState(state);
+  if (seenState !== state) {
+    setSeenState(state);
+    if (state.status === "success") {
+      const newRemark = remarks.trim();
+      if (newRemark) setSavedRemarks((current) => [newRemark, ...current.filter((item) => item !== newRemark)]);
+      setName(""); setCoins(""); setRemarks(""); setRate(company?.defaultRate ?? ""); setClientError("");
+    }
+  }
+  useEffect(() => { if (state.status === "success") nameRef.current?.focus(); }, [state]);
 
   function clear() { setEditing(null); setName(""); setCoins(""); setRemarks(""); setRate(company?.defaultRate ?? ""); setClientError(""); nameRef.current?.focus(); }
   function toggleDelete() {

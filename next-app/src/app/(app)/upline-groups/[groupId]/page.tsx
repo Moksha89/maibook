@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/validation/common";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -18,6 +19,7 @@ export default async function UplineGroupPage({ params, searchParams }: { params
   const tab = (await searchParams).tab === "entries" ? "entries" : "sites";
   await requirePermission("uplines.read");
   const { groupId } = await params;
+  if (!isUuid(groupId)) notFound();
   if (!/^[0-9a-f-]{36}$/i.test(groupId)) notFound();
   const group = await db.uplineGroup.findUnique({ where: { id: groupId }, include: { company: { select: { name: true } }, members: { include: { upline: { select: { name: true } } } }, sites: { orderBy: { name: "asc" } } } });
   if (!group) notFound();

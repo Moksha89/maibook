@@ -1,14 +1,16 @@
-import { requirePermission } from "@/lib/auth/permissions";
+import { accessibleCompanyIds, requirePermission } from "@/lib/auth/permissions";
 import { csvResponse } from "@/lib/csv";
 import { db } from "@/lib/db";
 import { auditWhere } from "@/lib/services/audit-query";
 
 export async function GET(request: Request) {
   await requirePermission("audit.read");
+  await requirePermission("audit.export");
+  const companyIds = await accessibleCompanyIds();
   const params = new URL(request.url).searchParams;
   const get = (key: string) => params.get(key) || undefined;
   const logs = await db.auditLog.findMany({
-    where: auditWhere({ q: get("q"), action: get("action"), entity: get("entity"), company: get("company"), user: get("user"), from: get("from"), to: get("to") }),
+    where: auditWhere({ q: get("q"), action: get("action"), entity: get("entity"), company: get("company"), user: get("user"), from: get("from"), to: get("to") }, companyIds),
     include: { actor: { select: { displayName: true, username: true } }, company: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 20_000,

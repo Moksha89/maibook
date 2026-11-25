@@ -2,10 +2,11 @@
 
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { forbidden } from "next/navigation";
 import { z } from "zod";
 
 import type { ActionState } from "@/lib/actions/types";
-import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
+import { accessibleCompanyIds, requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import { normalizeName } from "@/lib/domain/normalization";
 
@@ -18,6 +19,21 @@ function refresh(groupIds: (string | null | undefined)[] = [], siteId?: string) 
   revalidatePath("/sites"); revalidatePath("/upline-groups");
   for (const id of groupIds) if (id) revalidatePath(`/upline-groups/${id}`);
   if (siteId) revalidatePath(`/sites/${siteId}`);
+}
+
+/**
+ * A site assigned to an upline group belongs to that group's company, so changing it needs FULL access there.
+ * An unassigned site is shared; a scoped user may only change it when none of its IDs sit in a company they cannot access.
+ */
+async function requireSiteAccess(site: { id: string; uplineGroupId: string | null }) {
+  if (site.uplineGroupId) {
+    const group = await db.uplineGroup.findUnique({ where: { id: site.uplineGroupId }, select: { companyId: true } });
+    if (group) { await requireCompanyAccess(group.companyId, "FULL"); return; }
+  }
+  const companyIds = await accessibleCompanyIds();
+  if (companyIds === null) return;
+  const outside = await db.agentIdentifier.findFirst({ where: { siteId: site.id, companyId: { notIn: companyIds, not: null } }, select: { id: true } });
+  if (outside) forbidden();
 }
 
 function duplicate(error: unknown) {
@@ -45,6 +61,7 @@ export async function updateSiteAction(_: ActionState, formData: FormData): Prom
   await requirePermission("uplines.update");
   const site = await db.site.findUnique({ where: { id: String(formData.get("siteId") || "") } });
   if (!site) return { status: "error", message: "This site no longer exists." };
+  await requireSiteAccess(site);
   const parsed = siteSchema.safeParse({ name: formData.get("name"), uplinePercentage: formData.get("uplinePercentage") });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message };
   const groupChange = formData.has("uplineGroupId") ? String(formData.get("uplineGroupId") || "") || null : undefined;
@@ -64,6 +81,7 @@ export async function assignSiteGroupAction(_: ActionState, formData: FormData):
   await requirePermission("uplines.update");
   const site = await db.site.findUnique({ where: { id: String(formData.get("siteId") || "") } });
   if (!site) return { status: "error", message: "This site no longer exists." };
+  await requireSiteAccess(site);
   const groupId = String(formData.get("uplineGroupId") || "") || null;
   if (groupId) {
     const group = await db.uplineGroup.findUnique({ where: { id: groupId } });
@@ -79,6 +97,7 @@ export async function deleteSiteAction(_: ActionState, formData: FormData): Prom
   await requirePermission("uplines.delete");
   const site = await db.site.findUnique({ where: { id: String(formData.get("siteId") || "") } });
   if (!site) return { status: "error", message: "This site no longer exists." };
+  await requireSiteAccess(site);
   await db.site.delete({ where: { id: site.id } });
   refresh([site.uplineGroupId], site.id);
   return { status: "success", message: `${site.name} was deleted.` };

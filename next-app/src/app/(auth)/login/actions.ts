@@ -8,10 +8,11 @@ import { createLoginChallenge, verifyLoginChallenge } from "@/lib/auth/otp";
 import { createSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { loginSchema } from "@/lib/validation/auth";
+import { clientIpFrom } from "@/lib/request-ip";
 
 export interface LoginState { error?: string; message?: string; challengeId?: string; maskedPhone?: string; fieldErrors?: { identifier?: string[]; password?: string[]; code?: string[] } }
 
-async function requestContext() { const store = await headers(); return { ipAddress: store.get("x-forwarded-for")?.split(",")[0]?.trim() || "local", userAgent: store.get("user-agent") || "Unknown device" }; }
+async function requestContext() { const store = await headers(); return { ipAddress: clientIpFrom(store.get("x-forwarded-for")), userAgent: store.get("user-agent") || "Unknown device" }; }
 async function finishLogin(user: { id: string; maxDevices: number }, context: { ipAddress: string; userAgent: string }) { await createSession(user.id, user.maxDevices, context); await db.$transaction([db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }), db.auditLog.create({ data: { actorId: user.id, action: "auth.login", entityType: "User", entityId: user.id, ipAddress: context.ipAddress, userAgent: context.userAgent, requestId: randomUUID() } })]); }
 
 export async function loginAction(_: LoginState, formData: FormData): Promise<LoginState> {

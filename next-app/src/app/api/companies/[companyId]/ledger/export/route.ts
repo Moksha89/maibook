@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
+import { csvCell } from "@/lib/csv";
 import { db } from "@/lib/db";
 import { renderPdf, renderPng } from "@/lib/services/report-render";
 import { whole, dayStamp } from "@/lib/format";
 
-function cell(value: string) { return `"${value.replaceAll('"', '""')}"`; }
 function fileSafe(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "ledger"; }
 
 export async function GET(request: Request, { params }: { params: Promise<{ companyId: string }> }) {
@@ -43,6 +43,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ comp
   }
   const header = ["Date", "Account", "Type", "Reference", "Coins", "Rate", "Credit", "Debit", "Closing balance", "Remarks"];
   const rows = lines.map((line) => [dayStamp(line.entry.entryDate, line.entry.createdAt), line.agent?.name ?? line.upline?.name ?? "Company", line.entry.entryType.replaceAll("_", " "), line.entry.reference ?? "", whole(line.coins), line.rate.toString(), whole(line.credit), whole(line.debit), whole(line.closingBalance), line.entry.remarks ?? ""]);
-  const body = `\uFEFF${[header, ...rows].map((row) => row.map(cell).join(",")).join("\r\n")}`;
+  const body = `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
   return new Response(body, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${name}.csv"` } });
 }

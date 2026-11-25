@@ -4,19 +4,33 @@ import { randomUUID } from "node:crypto";
 import { hash } from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { forbidden, notFound } from "next/navigation";
 
 import type { ActionState } from "@/lib/actions/types";
-import { requirePermission } from "@/lib/auth/permissions";
+import { hasPermission, requirePermission } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { normalizeEmail, normalizeName, normalizePhone } from "@/lib/domain/normalization";
 import { createUserSchema, updateUserSchema } from "@/lib/validation/user";
+import { canAssignRole, canManageUser, isSuperAdmin } from "@/lib/auth/user-guards";
+
+/** Loads the target user and refuses when a non-SuperAdmin tries to act on a SuperAdmin account. */
+async function assertCanManage(actor: Awaited<ReturnType<typeof requireSession>>, userId: string) {
+  const target = await db.user.findUnique({ where: { id: userId }, select: { id: true, roles: { select: { role: { select: { key: true } } } } } });
+  if (!target) notFound();
+  // Only a SuperAdmin may act on a SuperAdmin account: anyone else gets the standard 403 page.
+  if (!canManageUser(isSuperAdmin(actor.user), isSuperAdmin(target))) forbidden();
+  return target;
+}
 
 export async function createUserAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("users.create");
   const parsed = createUserSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message, fieldErrors: parsed.error.flatten().fieldErrors };
   const actor = await requireSession();
+  const role = await db.role.findUnique({ where: { id: parsed.data.roleId }, select: { key: true } });
+  if (!role) return { status: "error", message: "The selected role is unavailable." };
+  if (!canAssignRole(isSuperAdmin(actor.user), role.key)) return { status: "error", message: "Only a SuperAdmin can create a SuperAdmin account." };
   const companyIds = [...new Set(formData.getAll("companyIds").map(String))];
   const accessLevel: "READ" | "FULL" = formData.get("accessLevel") === "READ" ? "READ" : "FULL";
   try {
@@ -52,6 +66,7 @@ export async function changeUserStatusAction(formData: FormData) {
   const userId = String(formData.get("userId") || "");
   const status = formData.get("status") === "ACTIVE" ? "ACTIVE" : "SUSPENDED";
   if (userId === actor.userId && status === "SUSPENDED") throw new Error("You cannot suspend your own account.");
+  await assertCanManage(actor, userId);
   await db.$transaction([
     db.user.update({ where: { id: userId }, data: { status } }),
     ...(status === "SUSPENDED" ? [db.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } })] : []),
@@ -64,6 +79,7 @@ export async function revokeUserSessionsAction(formData: FormData) {
   await requirePermission("users.revoke_sessions");
   const actor = await requireSession();
   const userId = String(formData.get("userId") || "");
+  await assertCanManage(actor, userId);
   await db.$transaction([
     db.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
     db.deviceRegistration.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
@@ -80,22 +96,26 @@ export async function updateUserAction(_: ActionState, formData: FormData): Prom
   const data = parsed.data;
   const user = await db.user.findUnique({ where: { id: data.userId }, include: { roles: { include: { role: true } }, companyAccess: true } });
   if (!user) return { status: "error", message: "This user no longer exists." };
-  const actorIsSuperAdmin = actor.user.roles.some(({ role }) => role.key === "superadmin");
-  const targetIsSuperAdmin = user.roles.some(({ role }) => role.key === "superadmin");
-  if (targetIsSuperAdmin && !actorIsSuperAdmin) return { status: "error", message: "Only a SuperAdmin can change a SuperAdmin account." };
+  const actorIsSuperAdmin = isSuperAdmin(actor.user);
+  const targetIsSuperAdmin = isSuperAdmin(user);
+  if (!canManageUser(actorIsSuperAdmin, targetIsSuperAdmin)) return { status: "error", message: "Only a SuperAdmin can change a SuperAdmin account." };
   const newRole = await db.role.findUnique({ where: { id: data.roleId } });
   if (!newRole) return { status: "error", message: "The selected role is unavailable." };
-  if (newRole.key === "superadmin" && !actorIsSuperAdmin) return { status: "error", message: "Only a SuperAdmin can grant the SuperAdmin role." };
+  if (!canAssignRole(actorIsSuperAdmin, newRole.key)) return { status: "error", message: "Only a SuperAdmin can grant the SuperAdmin role." };
   if (user.id === actor.userId && targetIsSuperAdmin && newRole.key !== "superadmin") return { status: "error", message: "You cannot remove your own SuperAdmin role." };
   const companyIds = [...new Set(formData.getAll("companyIds").map(String))];
   const accessLevel: "READ" | "FULL" = formData.get("accessLevel") === "READ" ? "READ" : "FULL";
   const modules = [...new Set(formData.getAll("overrideModules").map(String))];
-  const permissions = await db.permission.findMany({ select: { id: true, module: true } });
+  const permissions = await db.permission.findMany({ select: { id: true, key: true, module: true } });
   const overrides = modules.flatMap((module) => {
     const effect = formData.get(`override.${module}`);
     if (effect !== "GRANT" && effect !== "DENY") return [];
-    return permissions.filter((permission) => permission.module === module).map((permission) => ({ userId: user.id, permissionId: permission.id, effect: effect as "GRANT" | "DENY" }));
+    return permissions.filter((permission) => permission.module === module).map((permission) => ({ userId: user.id, permissionId: permission.id, key: permission.key, effect: effect as "GRANT" | "DENY" }));
   });
+  // A non-SuperAdmin cannot hand out (to anyone, including themselves) a permission they do not hold.
+  if (!actorIsSuperAdmin) {
+    for (const override of overrides) if (override.effect === "GRANT" && !(await hasPermission(override.key))) return { status: "error", message: "You cannot grant a permission you do not have." };
+  }
   const roleChanged = !user.roles.some(({ roleId }) => roleId === data.roleId) || user.roles.length !== 1;
   const passwordChanged = Boolean(data.newPassword);
   try {
@@ -106,7 +126,7 @@ export async function updateUserAction(_: ActionState, formData: FormData): Prom
       db.companyAccess.deleteMany({ where: { userId: user.id } }),
       db.companyAccess.createMany({ data: companyIds.map((companyId) => ({ userId: user.id, companyId, level: accessLevel })) }),
       db.userPermissionOverride.deleteMany({ where: { userId: user.id } }),
-      db.userPermissionOverride.createMany({ data: overrides }),
+      db.userPermissionOverride.createMany({ data: overrides.map(({ userId, permissionId, effect }) => ({ userId, permissionId, effect })) }),
       // Keep the signed-in admin's own session; everyone else must re-authenticate after a role or password change.
       ...(user.id !== actor.userId && (roleChanged || passwordChanged) ? [db.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } })] : []),
       db.auditLog.create({ data: { actorId: actor.userId, action: "user.update", entityType: "User", entityId: user.id, requestId: randomUUID(), oldValues: { roles: user.roles.map(({ role }) => role.key), maxDevices: user.maxDevices, companyIds: user.companyAccess.map((access) => access.companyId) }, newValues: { role: newRole.key, maxDevices: data.maxDevices, otpEnabled: formData.has("otpEnabled"), expiresAt: data.expiresAt ?? null, companyIds, accessLevel, overriddenModules: modules, passwordReset: passwordChanged } } }),

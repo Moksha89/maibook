@@ -7,18 +7,24 @@ export interface AuditFilters { q?: string; action?: string; entity?: string; co
 
 const uuid = z.string().uuid();
 
-export function auditWhere(filters: AuditFilters): Prisma.AuditLogWhereInput {
+/**
+ * `companyIds` scopes the log to the caller's companies (null = SuperAdmin, everything).
+ * Scoped users only see entries tied to one of their companies; platform-wide entries (users, settings, logins) stay SuperAdmin-only.
+ */
+export function auditWhere(filters: AuditFilters, companyIds: string[] | null = []): Prisma.AuditLogWhereInput {
   const insensitive = "insensitive" as const;
   const createdAt: Prisma.DateTimeFilter = {};
   const from = filters.from ? new Date(`${filters.from}T00:00:00+05:30`) : null;
   const to = filters.to ? new Date(`${filters.to}T23:59:59.999+05:30`) : null;
   if (from && !Number.isNaN(from.getTime())) createdAt.gte = from;
   if (to && !Number.isNaN(to.getTime())) createdAt.lte = to;
+  const scope: Prisma.AuditLogWhereInput = companyIds === null ? {} : { companyId: { in: companyIds } };
   return {
+    ...scope,
     ...(Object.keys(createdAt).length ? { createdAt } : {}),
     ...(filters.action ? { action: { contains: filters.action, mode: insensitive } } : {}),
     ...(filters.entity ? { entityType: filters.entity } : {}),
-    ...(filters.company && uuid.safeParse(filters.company).success ? { companyId: filters.company } : {}),
+    ...(filters.company && uuid.safeParse(filters.company).success ? { AND: [{ companyId: filters.company }] } : {}),
     ...(filters.user && uuid.safeParse(filters.user).success ? { actorId: filters.user } : {}),
     ...(filters.q ? { OR: [{ entityType: { contains: filters.q, mode: insensitive } }, { entityId: { contains: filters.q, mode: insensitive } }, { requestId: { contains: filters.q, mode: insensitive } }, { actor: { displayName: { contains: filters.q, mode: insensitive } } }] } : {}),
   };

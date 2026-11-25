@@ -21,7 +21,10 @@ export function ExpenseForm({ companyId, options, expense }: { companyId: string
   const [category, setCategory] = useState(expense?.category ?? "");
   const [remarks, setRemarks] = useState(expense?.remarks ?? "");
   const clear = () => { setCategory(expense?.category ?? ""); setRemarks(expense?.remarks ?? ""); };
-  useEffect(() => { if (state.status === "success" && !expense) { formRef.current?.reset(); setCategory(""); setRemarks(""); } }, [state, expense]);
+  // Clear the controlled fields once per successful save (render-phase update instead of setState in an effect).
+  const [seenState, setSeenState] = useState(state);
+  if (seenState !== state) { setSeenState(state); if (state.status === "success" && !expense) { setCategory(""); setRemarks(""); } }
+  useEffect(() => { if (state.status === "success" && !expense) formRef.current?.reset(); }, [state, expense]);
 
   return (
     <form ref={formRef} action={action} aria-label={expense ? "Edit expense" : "Create expense"} className="rounded-lg border bg-white p-2 sm:p-3">

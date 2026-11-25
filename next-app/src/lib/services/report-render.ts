@@ -6,7 +6,7 @@ import path from "node:path";
 
 import type { ReportTable } from "@/lib/services/report-data";
 
-export function escapeXml(value: string) { return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"); }
+export function escapeXml(value: string) { return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"); }
 export function reportFileName(title: string, extension: string) { return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}.${extension}`; }
 
 export async function renderPdf(table: ReportTable, brand: { title: string; footer: string }) {

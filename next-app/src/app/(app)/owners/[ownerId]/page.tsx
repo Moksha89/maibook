@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/validation/common";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -21,6 +22,7 @@ const tone = (value: number) => balanceTone(value);
 export default async function OwnerPage({ params, searchParams }: { params: Promise<{ ownerId: string }>; searchParams: Promise<{ tab?: string }> }) {
   await requirePermission("owners.read");
   const { ownerId } = await params;
+  if (!isUuid(ownerId)) notFound();
   const tab = (await searchParams).tab === "entries" ? "entries" : "companies";
   if (!/^[0-9a-f-]{36}$/i.test(ownerId)) notFound();
   const session = await requireSession();

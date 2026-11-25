@@ -37,3 +37,11 @@ export async function requireCompanyAccess(companyId: string, required: "READ" |
   });
   if (!access || (required === "FULL" && access.level !== "FULL")) forbidden();
 }
+
+/** Companies the signed-in user may see: `null` means every company (SuperAdmin), otherwise the explicit company grants. */
+export const accessibleCompanyIds = cache(async function accessibleCompanyIds(): Promise<string[] | null> {
+  const session = await requireSession();
+  if (session.user.roles.some(({ role }) => role.key === "superadmin")) return null;
+  const rows = await db.companyAccess.findMany({ where: { userId: session.userId }, select: { companyId: true } });
+  return rows.map(({ companyId }) => companyId);
+});

@@ -59,3 +59,7 @@ export const pastOrToday = (label = "Date") =>
     .refine((value) => value.getUTCFullYear() >= 2000, `${label} is too far in the past.`);
 
 export const SUM_TOLERANCE = 0.005;
+
+const uuidSchema = z.string().uuid();
+/** Route params are UUIDs; anything else is a 404, never a database error. */
+export const isUuid = (value: unknown): value is string => uuidSchema.safeParse(value).success;

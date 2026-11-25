@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ModalCloseContext } from "@/components/ui/modal-context";
 import type { CSSProperties } from "react";
 import type { KeyboardEvent, Ref } from "react";
@@ -21,6 +21,12 @@ type Props = Omit<InputProps, "value" | "onChange" | "list" | "ref"> & {
   inlineComplete?: boolean;
 };
 
+/** Forward a DOM node to a callback or object ref owned by the parent. */
+function assignRef<T>(ref: Ref<T> | undefined, node: T | null) {
+  if (typeof ref === "function") ref(node);
+  else if (ref) (ref as { current: T | null }).current = node;
+}
+
 /** Text field with a filter-as-you-type suggestion list (MyBook Advance style). Free text is still allowed. */
 export function AutocompleteInput({ options, value, onValueChange, inputRef, openUp = true, requireQuery = false, inlineComplete = false, ...props }: Props) {
   const [open, setOpen] = useState(false);
@@ -28,11 +34,7 @@ export function AutocompleteInput({ options, value, onValueChange, inputRef, ope
   const [typed, setTyped] = useState<string | null>(null);
   const localRef = useRef<HTMLInputElement | null>(null);
   const selection = useRef<[number, number] | null>(null);
-  const setRefs = (node: HTMLInputElement | null) => {
-    localRef.current = node;
-    if (typeof inputRef === "function") inputRef(node);
-    else if (inputRef) (inputRef as { current: HTMLInputElement | null }).current = node;
-  };
+  const setRefs = useCallback((node: HTMLInputElement | null) => { localRef.current = node; assignRef(inputRef, node); }, [inputRef]);
   const query = (inlineComplete && typed !== null ? typed : value).trim().toLowerCase();
   const matches = useMemo(() => {
     if (requireQuery && !query) return [];

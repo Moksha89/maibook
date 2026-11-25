@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { hashToken } from "@/lib/auth/crypto";
 import { db } from "@/lib/db";
 import { z } from "zod";
@@ -14,7 +16,7 @@ const payloadSchema = z.object({
 export async function POST(request: Request) {
   const configured = process.env.WHATSAPP_BRIDGE_TOKEN;
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!configured || !provided || hashToken(configured) !== hashToken(provided)) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!configured || !provided || !timingSafeEqual(Buffer.from(hashToken(configured), "hex"), Buffer.from(hashToken(provided), "hex"))) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const parsed = payloadSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Invalid payload" }, { status: 400 });
   const body = parsed.data;

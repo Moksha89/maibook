@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/validation/common";
 import { FileImage, FileSpreadsheet, FileText, ReceiptIndianRupee } from "lucide-react";
 import { randomUUID } from "node:crypto";
 import type { Metadata } from "next";
@@ -34,6 +35,7 @@ const tabs = [
 export default async function CompanyWorkspacePage({ params, searchParams }: { params: Promise<{ companyId: string }>; searchParams: Promise<{ tab?: string; agent?: string }> }) {
   await requirePermission("companies.read");
   const { companyId } = await params;
+  if (!isUuid(companyId)) notFound();
   await requireCompanyAccess(companyId, "READ");
   const query = await searchParams;
   const tab = tabs.some(([key]) => key === query.tab) ? query.tab! : "entries";

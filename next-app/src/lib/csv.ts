@@ -1,6 +1,6 @@
 /** Quote one CSV cell. Text that a spreadsheet could read as a formula is neutralised. */
 export function csvCell(value: string): string {
-  const safe = /^[=+@\t\r]/.test(value) || /^-(?![\d.])/.test(value) ? `'${value}` : value;
+  const safe = /^[\s]*[=+@\t\r|]/.test(value) || /^[\s]*-(?![\d.,]+$)/.test(value) ? `'${value}` : value;
   return `"${safe.replaceAll('"', '""')}"`;
 }
 

@@ -33,8 +33,8 @@ export default async function SitePage({ params, searchParams }: { params: Promi
   const session = await requireSession();
   const superAdmin = session.user.roles.some(({ role }) => role.key === "superadmin");
   const accessFilter = superAdmin ? {} : { userAccess: { some: { userId: session.userId } } };
-  const site = await db.site.findUnique({
-    where: { id: siteId },
+  const site = await db.site.findFirst({
+    where: { id: siteId, ...(superAdmin ? {} : { OR: [{ uplineGroupId: null }, { uplineGroup: { company: accessFilter } }] }) },
     include: { uplineGroup: { select: { id: true, name: true, company: { select: { name: true } } } } },
   });
   if (!site) notFound();

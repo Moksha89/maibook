@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/validation/common";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -21,6 +22,7 @@ const money = (value: unknown) => Number(whole(value)).toLocaleString("en-IN");
 export default async function CompanyExpensesPage({ params, searchParams }: { params: Promise<{ companyId: string }>; searchParams: Promise<{ tab?: string }> }) {
   await requirePermission("expenses.read");
   const { companyId } = await params;
+  if (!isUuid(companyId)) notFound();
   if (!/^[0-9a-f-]{36}$/i.test(companyId)) notFound();
   await requireCompanyAccess(companyId, "READ");
   const [company, canCreate, canUpdate, canDelete, fullAccess] = await Promise.all([
