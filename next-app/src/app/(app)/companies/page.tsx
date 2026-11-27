@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { FilterForm } from "@/components/ui/filter-form";
+import { Pagination } from "@/components/ui/pagination";
+import { EntryScopeTabs } from "@/components/ui/entry-scope-tabs";
 import Link from "next/link";
 
 import { FormModal } from "@/components/ui/form-modal";
@@ -13,16 +15,17 @@ import { deleteCompanyAction, setCompanyStatusAction } from "./actions";
 import { CompanyForm } from "./company-form";
 import { EditCompanyForm } from "./edit-company-form";
 import { ExpandingSearch } from "@/components/ui/expanding-search";
-import { DeletedRecords, DeletedToggle } from "@/components/ui/deleted-records";
+import { DeletedRecords } from "@/components/ui/deleted-records";
+import { pageRows } from "@/lib/paging";
 import { LinkButton } from "@/components/ui/button";
 import { balanceTone, stamp } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Companies" };
 
-export default async function CompaniesPage({ searchParams }: { searchParams: Promise<{ q?: string; deleted?: string }> }) {
+export default async function CompaniesPage({ searchParams }: { searchParams: Promise<{ q?: string; deleted?: string; page?: string }> }) {
   await requirePermission("companies.read");
   const session = await requireSession();
-  const { q = "", deleted } = await searchParams;
+  const { q = "", deleted, page } = await searchParams;
   const showDeleted = deleted === "1";
   const superAdmin = session.user.roles.some(({ role }) => role.key === "superadmin");
   const [canCreate, canUpdate, canDelete, companies] = await Promise.all([hasPermission("companies.create"), hasPermission("companies.update"), hasPermission("companies.delete"), db.company.findMany({
@@ -33,29 +36,33 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
     },
     include: { _count: { select: { agents: true, ledgerEntries: true, identifiers: true } } },
     orderBy: { name: "asc" },
-    take: 100,
   })]);
   const balanceRows = await db.companyAgent.groupBy({ by: ["companyId"], where: { companyId: { in: companies.map((company) => company.id) }, removedAt: null }, _sum: { currentBalance: true } });
   const balances = new Map(balanceRows.map((row) => [row.companyId, Number(row._sum.currentBalance ?? 0)]));
-  const deletedCompanies = showDeleted ? await db.company.findMany({ where: { deletedAt: { not: null }, ...(superAdmin ? {} : { userAccess: { some: { userId: session.userId } } }), ...(q.trim() ? { name: { contains: q.trim(), mode: "insensitive" as const } } : {}) }, select: { id: true, name: true, notes: true, deletedAt: true, deletedById: true }, orderBy: { deletedAt: "desc" }, take: 200 }) : [];
+  const pagedCompanies = pageRows(companies, page);
+  const deletedCompanies = showDeleted ? await db.company.findMany({ where: { deletedAt: { not: null }, ...(superAdmin ? {} : { userAccess: { some: { userId: session.userId } } }), ...(q.trim() ? { name: { contains: q.trim(), mode: "insensitive" as const } } : {}) }, select: { id: true, name: true, notes: true, deletedAt: true, deletedById: true }, orderBy: { deletedAt: "desc" } }) : [];
+  const pagedDeleted = pageRows(deletedCompanies, page);
 
   return (
     <>
       <PageHeader title="Companies" actions={canCreate ? <FormModal trigger="Add company" title="Create company"><CompanyForm /></FormModal> : null} />
-      <section className="mt-3 overflow-hidden rounded-lg border bg-white">
+      <EntryScopeTabs pathname="/companies" params={{ q }} deleted={showDeleted} />
+      {showDeleted ? <section className="overflow-hidden rounded-lg border bg-white"><div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2"><h2 className="text-sm font-bold">Deleted companies</h2><FilterForm className="flex items-center gap-1.5"><input type="hidden" name="deleted" value="1" /><ExpandingSearch defaultValue={q} label="Search companies" /></FilterForm></div><DeletedRecords title="Deleted companies" rows={pagedDeleted.rows.map((company) => ({ id: company.id, name: company.name, detail: company.notes, deletedAt: company.deletedAt, deletedById: company.deletedById }))} /><Pagination pathname="/companies" params={{ q, deleted: "1" }} page={pagedDeleted.current} pages={pagedDeleted.pages} total={pagedDeleted.total} /></section> : (
+      <section className="overflow-hidden rounded-lg border bg-white">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
           <h2 className="text-sm font-bold">Company directory</h2>
-          <FilterForm className="flex items-center gap-1.5"><ExpandingSearch defaultValue={q} label="Search companies" /><DeletedToggle active={showDeleted} q={q} /></FilterForm>
+          <FilterForm className="flex items-center gap-1.5"><ExpandingSearch defaultValue={q} label="Search companies" /></FilterForm>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1000px] text-left text-xs">
             <thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2">Company</th><th className="px-3 py-2">Created</th><th className="px-3 py-2">Code</th><th className="px-3 py-2">Currency</th><th className="px-3 py-2 text-right">Agents</th><th className="px-3 py-2 text-right">IDs</th><th className="px-3 py-2 text-right">Entries</th><th className="px-3 py-2 text-right">Agent balance</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Actions</th></tr></thead>
-            <tbody>{companies.map((company) => <tr key={company.id} className="border-t hover:bg-[#fafbfc]"><td className="px-3 py-2 font-semibold"><Link prefetch={false} href={`/companies/${company.id}`} className="text-[#8a6012] hover:underline">{company.name}</Link>{company.contactPhone || company.contactEmail ? <div className="text-[10px] font-normal text-[#647386]">{[company.contactPhone, company.contactEmail].filter(Boolean).join(" · ")}</div> : null}</td><td className="whitespace-nowrap px-3 py-2 text-[#647386]">{stamp(company.createdAt)}</td><td className="px-3 py-2 font-mono text-[11px]">{company.code ?? "-"}</td><td className="px-3 py-2">{company.currency}</td><td className="px-3 py-2 text-right font-mono">{company._count.agents}</td><td className="px-3 py-2 text-right font-mono">{company._count.identifiers}</td><td className="px-3 py-2 text-right font-mono">{company._count.ledgerEntries}</td><td className={`px-3 py-2 text-right font-mono ${balanceTone(balances.get(company.id) ?? 0)}`}>{(balances.get(company.id) ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0, signDisplay: "negative" })}</td><td className="px-3 py-2"><StatusBadge tone={company.status === "ACTIVE" ? "success" : "neutral"}>{company.status}</StatusBadge></td><td className="px-3 py-2"><div className="flex justify-end gap-1"><LinkButton href={`/companies/${company.id}`} size="xs" iconOnly variant="secondary">Open</LinkButton>{canUpdate ? <FormModal compact trigger="Edit" title={`Edit ${company.name}`}><EditCompanyForm company={{ id: company.id, name: company.name, code: company.code, notes: company.notes, createdAt: `${company.createdAt.getFullYear()}-${String(company.createdAt.getMonth() + 1).padStart(2, "0")}-${String(company.createdAt.getDate()).padStart(2, "0")}` }} /></FormModal> : null}{canUpdate ? <ActionButton action={setCompanyStatusAction} fields={{ companyId: company.id, status: company.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" }} label={company.status === "ACTIVE" ? "Deactivate" : "Activate"} /> : null}{canDelete ? <ActionButton action={deleteCompanyAction} fields={{ companyId: company.id }} label="Remove" danger confirmMessage={`Remove ${company.name}? This cannot be undone.`} /> : null}</div></td></tr>)}</tbody>
+            <tbody>{pagedCompanies.rows.map((company) => <tr key={company.id} className="border-t hover:bg-[#fafbfc]"><td className="px-3 py-2 font-semibold"><Link prefetch={false} href={`/companies/${company.id}`} className="text-[#8a6012] hover:underline">{company.name}</Link>{company.contactPhone || company.contactEmail ? <div className="text-[10px] font-normal text-[#647386]">{[company.contactPhone, company.contactEmail].filter(Boolean).join(" · ")}</div> : null}</td><td className="whitespace-nowrap px-3 py-2 text-[#647386]">{stamp(company.createdAt)}</td><td className="px-3 py-2 font-mono text-[11px]">{company.code ?? "-"}</td><td className="px-3 py-2">{company.currency}</td><td className="px-3 py-2 text-right font-mono">{company._count.agents}</td><td className="px-3 py-2 text-right font-mono">{company._count.identifiers}</td><td className="px-3 py-2 text-right font-mono">{company._count.ledgerEntries}</td><td className={`px-3 py-2 text-right font-mono ${balanceTone(balances.get(company.id) ?? 0)}`}>{(balances.get(company.id) ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0, signDisplay: "negative" })}</td><td className="px-3 py-2"><StatusBadge tone={company.status === "ACTIVE" ? "success" : "neutral"}>{company.status}</StatusBadge></td><td className="px-3 py-2"><div className="flex justify-end gap-1"><LinkButton href={`/companies/${company.id}`} size="xs" iconOnly variant="secondary">Open</LinkButton>{canUpdate ? <FormModal compact trigger="Edit" title={`Edit ${company.name}`}><EditCompanyForm company={{ id: company.id, name: company.name, code: company.code, notes: company.notes, createdAt: `${company.createdAt.getFullYear()}-${String(company.createdAt.getMonth() + 1).padStart(2, "0")}-${String(company.createdAt.getDate()).padStart(2, "0")}` }} /></FormModal> : null}{canUpdate ? <ActionButton action={setCompanyStatusAction} fields={{ companyId: company.id, status: company.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" }} label={company.status === "ACTIVE" ? "Deactivate" : "Activate"} /> : null}{canDelete ? <ActionButton action={deleteCompanyAction} fields={{ companyId: company.id }} label="Remove" danger confirmMessage={`Remove ${company.name}? This cannot be undone.`} /> : null}</div></td></tr>)}</tbody>
           </table>
         </div>
         {!companies.length ? <p className="px-3 py-8 text-center text-xs text-[#647386]">No companies match this view.</p> : null}
+        <Pagination pathname="/companies" params={{ q }} page={pagedCompanies.current} pages={pagedCompanies.pages} total={pagedCompanies.total} />
       </section>
-      {showDeleted ? <DeletedRecords title="Deleted companies" rows={deletedCompanies.map((company) => ({ id: company.id, name: company.name, detail: company.notes, deletedAt: company.deletedAt, deletedById: company.deletedById }))} /> : null}
+      )}
     </>
   );
 }

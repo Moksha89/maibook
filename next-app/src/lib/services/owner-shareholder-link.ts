@@ -73,7 +73,8 @@ export async function linkOwnerFromShareholder(
   effectiveFrom?: Date,
 ) {
   const owner = await findOrCreateOwner(tx, { name: shareholder.name, email: shareholder.email, phone: shareholder.phone, actorId, companyId: shareholder.companyId });
-  await upsertOwnerCompanyLink(tx, owner.id, shareholder.companyId, shareholder.percentage, effectiveFrom ?? shareholder.createdAt);
+  // Percent changes start now unless a caller passes effectiveFrom (backfill passes createdAt). Never default to createdAt — that would rewrite older ledger rows.
+  await upsertOwnerCompanyLink(tx, owner.id, shareholder.companyId, shareholder.percentage, effectiveFrom);
   return owner;
 }
 

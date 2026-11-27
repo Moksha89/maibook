@@ -11,20 +11,25 @@ import { stamp } from "@/lib/format";
 import { BackupUploadForm } from "./backup-upload-form";
 import { createBackupAction, verifyBackupAction } from "./actions";
 import { DeletedTab } from "./deleted-tab";
+import { DatabaseBrowserTab } from "./browser-tab";
+import { requireSession } from "@/lib/auth/session";
+import { isSuperAdmin } from "@/lib/auth/user-guards";
 
 export const metadata: Metadata = { title: "Database" };
 const exports = [{ key: "companies", label: "Companies" }, { key: "agents", label: "Agents" }, { key: "settlements", label: "Settlements" }, { key: "audit_logs", label: "Audit logs" }, { key: "users", label: "Users without credentials" }];
 
-export default async function DatabasePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function DatabasePage({ searchParams }: { searchParams: Promise<{ tab?: string; table?: string; page?: string }> }) {
   await requirePermission("database.read");
-  const { tab: rawTab } = await searchParams;
-  const tab = rawTab === "deleted" ? "deleted" : "backups";
+  const session = await requireSession();
+  const superAdmin = isSuperAdmin(session.user);
+  const { tab: rawTab, table, page } = await searchParams;
+  const tab = rawTab === "deleted" ? "deleted" : rawTab === "browser" && superAdmin ? "browser" : "backups";
   const [canExport, canCreateBackup, canDownload] = await Promise.all([hasPermission("database.export"), hasPermission("backups.create"), hasPermission("backups.download")]);
   return (
     <>
       <PageHeader title="Database" actions={tab === "backups" && canCreateBackup ? <form action={createBackupAction}><Button type="submit"><DatabaseBackup className="size-4" />Create backup</Button></form> : null} />
-      <Tabs label="Database" className="mb-3" active={tab} items={[{ key: "backups", label: "Backups", href: "/database" }, { key: "deleted", label: "Deleted", href: "/database?tab=deleted" }]} />
-      {tab === "deleted" ? <DeletedTab /> : <BackupsPanel canExport={canExport} canCreateBackup={canCreateBackup} canDownload={canDownload} />}
+      <Tabs label="Database" className="mb-3" active={tab} items={[{ key: "backups", label: "Backups", href: "/database" }, ...(superAdmin ? [{ key: "browser", label: "Database", href: "/database?tab=browser" }] : []), { key: "deleted", label: "Deleted", href: "/database?tab=deleted" }]} />
+      {tab === "deleted" ? <DeletedTab /> : tab === "browser" ? <DatabaseBrowserTab table={table} page={page} /> : <BackupsPanel canExport={canExport} canCreateBackup={canCreateBackup} canDownload={canDownload} />}
     </>
   );
 }

@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 
 import { financialTransaction } from "@/lib/services/financial-transaction";
 import { allocateShareholderProfit, summarizeSettlementProfit } from "@/lib/domain/finance";
+import { shareholderRatesAt } from "@/lib/services/shareholder-rates";
 
 export interface DistributeProfitInput {
   companyId: string;
@@ -24,7 +25,7 @@ export async function distributeCompanyProfit(input: DistributeProfitInput) {
     const [settlements, shareholders] = await Promise.all([
       tx.settlement.findMany({
         where: { companyId: input.companyId, status: "POSTED", settlementDate: { gte: input.periodStart, lte: input.periodEnd } },
-        select: { id: true, amount: true, absoluteAmount: true, agentShare: true, uplineShare: true, companyShare: true, profitDistributedAt: true },
+        select: { id: true, createdAt: true, amount: true, absoluteAmount: true, agentShare: true, uplineShare: true, companyShare: true, profitDistributedAt: true },
       }),
       tx.shareholder.findMany({ where: { companyId: input.companyId, status: "ACTIVE", deletedAt: null }, orderBy: { name: "asc" } }),
     ]);
@@ -33,7 +34,23 @@ export async function distributeCompanyProfit(input: DistributeProfitInput) {
     if (settlements.some((settlement) => settlement.profitDistributedAt)) throw new Error("This period includes settlements whose profit was already distributed.");
     // Signed: a losing (negative) settlement reduces profit and produces negative shareholder allocations.
     const { totalSettlements, agentShare, uplineShare, companyProfit } = summarizeSettlementProfit(settlements);
-    const allocations = allocateShareholderProfit(companyProfit, shareholders.map((shareholder) => ({ shareholderId: shareholder.id, percentage: shareholder.percentage.toString() })));
+    // Split each settlement with the share % in force when that settlement was posted, then sum.
+    const totals = new Map<string, { amount: number; percentages: string[] }>();
+    for (const settlement of settlements) {
+      const profit = Number(summarizeSettlementProfit([settlement]).companyProfit.toString());
+      const rates = await shareholderRatesAt(tx, input.companyId, settlement.createdAt, shareholders);
+      for (const allocation of allocateShareholderProfit(profit, rates.filter((row) => Number(row.percentage) > 0))) {
+        const current = totals.get(allocation.shareholderId) ?? { amount: 0, percentages: [] };
+        current.amount += Number(allocation.amount.toString());
+        current.percentages.push(allocation.percentage.toString());
+        totals.set(allocation.shareholderId, current);
+      }
+    }
+    const allocations = [...totals.entries()].map(([shareholderId, row]) => ({
+      shareholderId,
+      percentage: row.percentages.at(-1) ?? "0",
+      amount: new Prisma.Decimal(String(row.amount)),
+    }));
     const period = `${input.periodStart.toISOString().slice(0, 10)} to ${input.periodEnd.toISOString().slice(0, 10)}`;
 
     for (const allocation of allocations) {

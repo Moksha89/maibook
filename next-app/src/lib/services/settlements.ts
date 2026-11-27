@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { financialTransaction } from "@/lib/services/financial-transaction";
 import { calculateSettlement, decimal, effectiveAgentPercentage, payableShare, splitCreditDebit } from "@/lib/domain/finance";
 import { recalculateAgentBalances, recalculateNonAgentBalances } from "@/lib/services/ledger";
+import { identifierShareAt } from "@/lib/services/identifier-share-history";
 
 export interface PostSettlementInput {
   companyId: string;
@@ -49,7 +50,10 @@ export async function postSettlement(input: PostSettlementInput) {
       if (input.uplineId && !upline) throw new Error("The selected upline is unavailable.");
       if (upline) await tx.$queryRaw`SELECT "id" FROM "uplines" WHERE "id" = ${upline.id}::uuid FOR UPDATE`;
       // SubAgent IDs keep their percentage with the sub agent; the agent is posted the remainder.
-      const appliedAgentPercentage = effectiveAgentPercentage(identifier.type, identifier.percentageRate.toString());
+      // Use the ID % in force at post time so a later % edit cannot change this settlement.
+      const shareHistory = await tx.identifierShareHistory.findMany({ where: { identifierId: identifier.id }, orderBy: { effectiveFrom: "asc" } });
+      const configuredPercentage = identifierShareAt(shareHistory, new Date(), Number(identifier.percentageRate.toString()));
+      const appliedAgentPercentage = effectiveAgentPercentage(identifier.type, String(configuredPercentage));
       // The upline share comes from the ID's site upline %; an ID without a site falls back to the chosen upline's %.
       const uplinePercentage = identifier.site ? decimal(identifier.site.uplinePercentage.toString()) : decimal(upline?.percentageRate.toString() ?? 0);
       const calculation = calculateSettlement(amount, appliedAgentPercentage, uplinePercentage, identifier.type);

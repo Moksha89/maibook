@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { allocateShareholderProfit, decimal } from "@/lib/domain/finance";
 import { financialTransaction } from "@/lib/services/financial-transaction";
+import { shareholderRatesAt } from "@/lib/services/shareholder-rates";
 
 type Tx = Prisma.TransactionClient;
 
@@ -23,12 +24,14 @@ export function todayIstDate() {
 }
 
 /** Charges an expense to the company's active shareholders by percentage (positive entries, which reduce a payable balance) and updates their balances. */
-async function chargeShareholders(tx: Tx, expense: { id: string; companyId: string; amount: Prisma.Decimal; expenseDate: Date; category: string; remarks: string | null }) {
+async function chargeShareholders(tx: Tx, expense: { id: string; companyId: string; amount: Prisma.Decimal; expenseDate: Date; createdAt: Date; category: string; remarks: string | null }) {
   const shareholders = await tx.shareholder.findMany({ where: { companyId: expense.companyId, status: "ACTIVE", deletedAt: null }, orderBy: { name: "asc" } });
   if (!shareholders.length) return 0;
   const expenseAmount = decimal(expense.amount.toString());
   const companyImpact = expenseAmount.neg();
-  const allocations = allocateShareholderProfit(expenseAmount, shareholders.map((shareholder) => ({ shareholderId: shareholder.id, percentage: shareholder.percentage.toString() })));
+  // Charge using the share % in force when the expense was posted, not the current %.
+  const rates = await shareholderRatesAt(tx, expense.companyId, expense.createdAt, shareholders);
+  const allocations = allocateShareholderProfit(expenseAmount, rates.filter((row) => Number(row.percentage) > 0));
   const version = Date.now().toString(36);
   for (const allocation of allocations) {
     await tx.shareholderEntry.create({
@@ -76,7 +79,7 @@ export async function updateExpense(expenseId: string, input: Omit<ExpenseInput,
     if (!existing) throw new Error("This expense no longer exists.");
     await lock(tx, existing.companyId);
     const expense = await tx.expense.update({ where: { id: existing.id }, data: { ...input, amount: new Prisma.Decimal(input.amount) } });
-    // Re-charge so shareholder balances follow the edited amount (and today's active shareholders).
+    // Re-charge the edited amount using the share % that was in force when the expense was originally posted.
     await reverseCharges(tx, expense.id);
     const charged = await chargeShareholders(tx, expense);
     await tx.auditLog.create({ data: { actorId, companyId: existing.companyId, action: "expense.update", entityType: "Expense", entityId: expense.id, requestId, oldValues: { amount: existing.amount.toString(), category: existing.category, remarks: existing.remarks }, newValues: { amount: input.amount, category: input.category, remarks: input.remarks, shareholderCharges: charged } } });

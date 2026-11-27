@@ -20,7 +20,7 @@ const linkSchema = z.object({ ownerId: z.string().uuid(), companyId: z.string().
 const assignSchema = linkSchema.extend({ percentage: share });
 const entrySchema = z.object({ ownerId: z.string().uuid(), entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."), entryTime: z.string().regex(/^\d{2}:\d{2}$/, "Choose a time.").optional(), direction: z.enum(["PAID", "RECEIVED"]), amount: z.coerce.number({ message: "Enter an amount." }).positive("Amount must be more than 0.").max(1_000_000_000), remarks: z.string().trim().max(500).transform((v) => v.toUpperCase()) });
 const updateEntrySchema = entrySchema.extend({ entryId: z.string().uuid() });
-const transferSchema = z.object({ fromOwnerId: z.string().uuid(), toOwnerId: z.string().uuid(), entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."), entryTime: z.string().regex(/^\d{2}:\d{2}$/, "Choose a time.").optional(), amount: z.coerce.number({ message: "Enter an amount." }).positive("Amount must be more than 0.").max(1_000_000_000), remarks: z.string().trim().max(500).transform((v) => v.toUpperCase()) });
+const transferSchema = z.object({ fromOwnerId: z.string().uuid(), toOwnerId: z.string().uuid(), entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date.").optional(), entryTime: z.string().regex(/^\d{2}:\d{2}$/, "Choose a time.").optional(), amount: z.coerce.number({ message: "Enter an amount." }).positive("Amount must be more than 0.").max(1_000_000_000), remarks: z.string().trim().max(500).transform((v) => v.toUpperCase()) });
 const updateTransferSchema = transferSchema.extend({ entryId: z.string().uuid() });
 
 type OwnerAccess = { id: string; createdById: string | null; normalizedName: string; companyLinks: { companyId: string }[] };
@@ -43,6 +43,17 @@ async function requireOwnerAccess(owner: OwnerAccess) {
 function entryPostedAt(entryDate: string, entryTime?: string) {
   const time = entryTime && /^\d{2}:\d{2}$/.test(entryTime) ? entryTime : "00:00";
   return new Date(`${entryDate}T${time}:00+05:30`);
+}
+
+function istCalendarDay(at = new Date()) {
+  const ist = new Date(at.getTime() + 5.5 * 3600_000);
+  return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
+}
+
+/** New transfers stamp the moment they are saved. An edit keeps its original time unless a date is supplied. */
+function transferWhen(entryDate?: string, entryTime?: string, fallback = new Date()) {
+  if (!entryDate) return { entryDate: istCalendarDay(fallback), postedAt: fallback };
+  return { entryDate: new Date(`${entryDate}T00:00:00Z`), postedAt: entryPostedAt(entryDate, entryTime) };
 }
 
 /** Move the matching shareholder balance: paid increases it (we owe less), received decreases it. */
@@ -258,8 +269,7 @@ export async function createOwnerTransferAction(_: ActionState, formData: FormDa
   await requireOwnerAccess(fromOwner);
   await requireOwnerAccess(toOwner);
   const session = await requireSession();
-  const entryDate = new Date(`${parsed.data.entryDate}T00:00:00Z`);
-  const postedAt = entryPostedAt(parsed.data.entryDate, parsed.data.entryTime);
+  const { entryDate, postedAt } = transferWhen(parsed.data.entryDate, parsed.data.entryTime);
   const remarks = parsed.data.remarks || null;
   const groupId = randomUUID();
   // Amount is not capped by the from-partner's balance; a larger amount may flip the sign.
@@ -267,7 +277,7 @@ export async function createOwnerTransferAction(_: ActionState, formData: FormDa
     await tx.ownerEntry.create({ data: { ownerId: fromOwner.id, companyId: null, entryDate, direction: "TRANSFER_OUT", amount: parsed.data.amount, remarks, createdById: session.userId, createdAt: postedAt, groupId } });
     await tx.ownerEntry.create({ data: { ownerId: toOwner.id, companyId: null, entryDate, direction: "TRANSFER_IN", amount: parsed.data.amount, remarks, createdById: session.userId, createdAt: postedAt, groupId } });
   });
-  await audit(null, "owner.entry.transfer", fromOwner.id, { newValues: { groupId, fromOwnerId: fromOwner.id, toOwnerId: toOwner.id, amount: parsed.data.amount, entryDate: parsed.data.entryDate } });
+  await audit(null, "owner.entry.transfer", fromOwner.id, { newValues: { groupId, fromOwnerId: fromOwner.id, toOwnerId: toOwner.id, amount: parsed.data.amount, entryDate: entryDate.toISOString().slice(0, 10) } });
   revalidateOwnerAndCompany(fromOwner.id, null);
   revalidateOwnerAndCompany(toOwner.id, null);
   return { status: "success", message: `Transfer from ${fromOwner.name} to ${toOwner.name} saved.` };
@@ -291,8 +301,7 @@ export async function updateOwnerTransferAction(_: ActionState, formData: FormDa
   await requireOwnerAccess(fromOwner);
   await requireOwnerAccess(toOwner);
   const session = await requireSession();
-  const entryDate = new Date(`${parsed.data.entryDate}T00:00:00Z`);
-  const postedAt = entryPostedAt(parsed.data.entryDate, parsed.data.entryTime);
+  const { entryDate, postedAt } = transferWhen(parsed.data.entryDate, parsed.data.entryTime, existing.createdAt);
   const remarks = parsed.data.remarks || null;
   const groupId = randomUUID();
   await db.$transaction(async (tx) => {

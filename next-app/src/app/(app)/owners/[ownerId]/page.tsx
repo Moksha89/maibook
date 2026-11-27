@@ -18,22 +18,27 @@ import { EditOwnerEntryForm } from "./edit-owner-entry-form";
 import { TransferForm } from "../transfer-form";
 import { includePartnerShareRow, partnerBalanceDue, partnerEntryShare, partnerRunningBalances } from "@/lib/services/partner-entries";
 import { Tabs } from "@/components/ui/tabs";
+import { Pagination } from "@/components/ui/pagination";
+import { EntryScopeTabs } from "@/components/ui/entry-scope-tabs";
 import { balanceTone, dayStamp } from "@/lib/format";
+import { pageRows } from "@/lib/paging";
 
 const money = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 0, signDisplay: "negative" });
 const tone = (value: number) => balanceTone(value);
 
-export default async function OwnerPage({ params, searchParams }: { params: Promise<{ ownerId: string }>; searchParams: Promise<{ tab?: string }> }) {
+export default async function OwnerPage({ params, searchParams }: { params: Promise<{ ownerId: string }>; searchParams: Promise<{ tab?: string; deleted?: string; page?: string }> }) {
   await requirePermission("owners.read");
   const { ownerId } = await params;
   if (!isUuid(ownerId)) notFound();
-  const tab = (await searchParams).tab === "entries" ? "entries" : "companies";
+  const query = await searchParams;
+  const tab = query.tab === "entries" ? "entries" : "companies";
+  const showDeleted = query.deleted === "1";
   if (!/^[0-9a-f-]{36}$/i.test(ownerId)) notFound();
   const session = await requireSession();
   const superAdmin = session.user.roles.some(({ role }) => role.key === "superadmin");
   const access = superAdmin ? {} : { userAccess: { some: { userId: session.userId } } };
   const [owner, accessible, canEdit] = await Promise.all([
-    db.owner.findUnique({ where: { id: ownerId }, include: { phoneNumbers: true, companyLinks: { include: { company: { select: { id: true, name: true } } }, orderBy: { company: { name: "asc" } } }, entries: { where: { deletedAt: null }, include: { company: { select: { name: true } } }, orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }] } } }),
+    db.owner.findUnique({ where: { id: ownerId }, include: { phoneNumbers: true, companyLinks: { include: { company: { select: { id: true, name: true } } }, orderBy: { company: { name: "asc" } } }, entries: { include: { company: { select: { name: true } } }, orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }] } } }),
     db.company.findMany({ where: { deletedAt: null, ...access }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     hasPermission("owners.update"),
   ]);
@@ -81,7 +86,9 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
   });
   const assignedIds = new Set([...owner.companyLinks.map((link) => link.companyId), ...shareholders.filter((row) => row.status === "ACTIVE" && !row.deletedAt).map((row) => row.companyId)]);
   const free = accessible.filter((company) => !assignedIds.has(company.id));
-  const payments = owner.entries;
+  const allPayments = owner.entries;
+  const payments = allPayments.filter((entry) => !entry.deletedAt);
+  const deletedPayments = allPayments.filter((entry) => entry.deletedAt);
   const transferGroupIds = [...new Set(payments.map((entry) => entry.groupId).filter((id): id is string => Boolean(id)))];
   const counterparts = transferGroupIds.length ? await db.ownerEntry.findMany({ where: { groupId: { in: transferGroupIds }, deletedAt: null, ownerId: { not: owner.id } }, include: { owner: { select: { id: true, name: true } } } }) : [];
   const partners = await db.owner.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
@@ -111,6 +118,15 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
   });
   const settlementLedger = settlementRows.map((row) => ({ ...row, kind: "share" as const, companyId: "", direction: undefined as "PAID" | "RECEIVED" | undefined }));
   const ledger = partnerRunningBalances([...settlementLedger, ...paymentRows].sort((x, y) => x.date.getTime() - y.date.getTime() || x.createdAt.getTime() - y.createdAt.getTime())).reverse();
+  const deletedRows = deletedPayments.map((entry) => {
+    const amount = Number(entry.amount.toString());
+    const direction = entry.direction;
+    const isTransfer = direction === "TRANSFER_OUT" || direction === "TRANSFER_IN";
+    return { id: entry.id, kind: "payment" as const, date: entry.entryDate, createdAt: entry.createdAt, companyName: "-", companyId: "", groupId: entry.groupId, fromOwnerId: owner.id, toOwnerId: owner.id, isTransfer, idValue: isTransfer ? "TRANSFER" : direction, remarks: entry.remarks || "", amount, ownerShare: partnerEntryShare(direction, amount), direction, balance: 0 };
+  }).sort((x, y) => y.date.getTime() - x.date.getTime() || y.createdAt.getTime() - x.createdAt.getTime());
+  const visibleLedger = showDeleted ? deletedRows : ledger;
+  const pagedLedger = pageRows(visibleLedger, query.page);
+  const pagedCompanies = pageRows(companies, query.page);
   const paid = payments.filter((entry) => entry.direction === "PAID").reduce((sum, entry) => sum + Number(entry.amount.toString()), 0);
   const received = payments.filter((entry) => entry.direction === "RECEIVED").reduce((sum, entry) => sum + Number(entry.amount.toString()), 0);
   const balance = partnerBalanceDue(totalProfit, payments.map((entry) => ({ direction: entry.direction, amount: Number(entry.amount.toString()) })));
@@ -131,18 +147,20 @@ export default async function OwnerPage({ params, searchParams }: { params: Prom
 
     {tab === "companies" ? <section className="overflow-hidden rounded-lg border bg-white">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2"><h2 className="text-sm font-bold">Companies</h2>{canEdit ? <span className="[&_button]:!size-7 [&_button_svg]:!size-3.5"><AssignCompanyForm ownerId={owner.id} ownerName={owner.name} companies={free} /></span> : null}</div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-xs"><thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2">Company</th><th className="px-3 py-2 text-right">Share</th><th className="px-3 py-2 text-right" title="Company profit from posted settlements">Company profit</th><th className="px-3 py-2 text-right">Expenses</th><th className="px-3 py-2 text-right" title="Company profit minus expenses">Final PNL</th><th className="px-3 py-2 text-right" title="Partner share of final PNL">Partner profit</th>{canEdit ? <th className="px-3 py-2 text-right">Actions</th> : null}</tr></thead>
-      <tbody>{companies.map((row) => <tr key={row.id} className="border-t"><td className="px-3 py-2 font-semibold"><Link prefetch={false} href={`/companies/${row.id}`} className="hover:text-[#2196f3] hover:underline">{row.name}</Link></td><td className="px-3 py-2 text-right font-mono">{row.percentage.toFixed(2)}%</td><td className={"px-3 py-2 text-right font-mono"}>{money(row.companyProfit)}</td><td className="px-3 py-2 text-right font-mono">{money(row.companyExpenses)}</td><td className="px-3 py-2 text-right font-mono">{money(row.finalPnl)}</td><td className={"px-3 py-2 text-right font-mono font-semibold"}>{money(row.ownerProfit)}</td>{canEdit ? <td className="px-3 py-2"><div className="flex justify-end"><ActionButton action={unassignOwnerCompanyAction} fields={{ ownerId: owner.id, companyId: row.id }} label="Unassign" danger confirmMessage={`Unassign ${owner.name} from ${row.name}?`} /></div></td> : null}</tr>)}</tbody></table></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[360px] text-left text-xs"><thead className="bg-[#fff4d7] text-[#59400f]"><tr><th className="px-3 py-2">Company</th><th className="px-3 py-2 text-right">Share</th>{canEdit ? <th className="px-3 py-2 text-right">Actions</th> : null}</tr></thead>
+      <tbody>{pagedCompanies.rows.map((row) => <tr key={row.id} className="border-t"><td className="px-3 py-2 font-semibold"><Link prefetch={false} href={`/companies/${row.id}`} className="hover:text-[#2196f3] hover:underline">{row.name}</Link></td><td className="px-3 py-2 text-right font-mono">{row.percentage.toFixed(2)}%</td>{canEdit ? <td className="px-3 py-2"><div className="flex justify-end"><ActionButton action={unassignOwnerCompanyAction} fields={{ ownerId: owner.id, companyId: row.id }} label="Unassign" danger confirmMessage={`Unassign ${owner.name} from ${row.name}?`} /></div></td> : null}</tr>)}</tbody></table></div>
       {!companies.length ? <p className="px-3 py-6 text-center text-xs text-[#647386]">Not assigned to any company yet.</p> : null}
+      <Pagination pathname={`/owners/${owner.id}`} params={{ tab: "companies" }} page={pagedCompanies.current} pages={pagedCompanies.pages} total={pagedCompanies.total} />
     </section> : null}
 
-    {tab === "entries" ? <><section className="overflow-hidden rounded-lg border bg-white">
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2"><h2 className="text-sm font-bold">Entries</h2><div className="flex items-center gap-2">{canEdit && partners.length > 1 ? <TransferForm partners={partners} defaultFromId={owner.id} /> : null}<span className="shrink-0 rounded-full border border-[#d5dbe6] bg-[#f7f8fa] px-3 py-1 text-xs text-[#647386]">Balance due <b className={`ml-1 font-mono text-sm ${tone(balance)}`}>{money(balance)}</b></span></div></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-xs"><thead className="bg-[#ffeebb] text-[#152235]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">ID</th><th className="px-3 py-2">Remarks</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Partner share</th><th className="px-3 py-2 text-right">Balance</th>{canEdit ? <th className="px-3 py-2 text-right">Actions</th> : null}</tr></thead>
-      <tbody>{ledger.map((row) => <tr key={`${row.kind}-${row.id}`} className={`cursor-default border-t border-white hover:brightness-95 ${Number(row.ownerShare) < 0 ? "bg-[#f8d7da]" : "bg-[#fff3cd]"}`}><td className="whitespace-nowrap px-3 py-2">{dayStamp(row.date, row.createdAt)}</td><td className="px-3 py-2">{row.companyName}</td><td className="px-3 py-2 font-mono font-semibold">{row.idValue}</td><td className="px-3 py-2">{row.remarks || "-"}</td><td className="px-3 py-2 text-right font-mono font-semibold">{money(row.amount)}</td><td className="px-3 py-2 text-right font-mono">{money(row.ownerShare)}</td><td className={`px-3 py-2 text-right font-mono font-semibold ${tone(row.balance)}`}>{money(row.balance)}</td>{canEdit ? <td className="px-3 py-2"><div className="flex justify-end gap-1">{row.kind === "payment" ? <>{row.isTransfer ? <TransferForm partners={partners} entry={{ id: row.id, fromOwnerId: row.fromOwnerId, toOwnerId: row.toOwnerId, entryDate: dateInput(row.date), entryTime: timeInput(row.createdAt), amount: String(Math.round(row.amount)), remarks: row.remarks === "INTERNAL TRANSFER" ? "" : row.remarks }} /> : <EditOwnerEntryForm entry={{ id: row.id, ownerId: owner.id, entryDate: dateInput(row.date), entryTime: timeInput(row.createdAt), direction: row.direction === "RECEIVED" ? "RECEIVED" : "PAID", amount: String(Math.round(row.amount)), remarks: row.remarks === "PAID TO PARTNER" || row.remarks === "RECEIVED FROM PARTNER" ? "" : row.remarks }} />}<ActionButton action={deleteOwnerEntryAction} fields={{ entryId: row.id }} label="Delete" danger confirmMessage={row.isTransfer ? "Delete this transfer from both partners?" : "Delete this partner entry?"} /></> : null}</div></td> : null}</tr>)}</tbody></table></div>
-      {!ledger.length ? <p className="px-3 py-6 text-center text-xs text-[#647386]">No entries yet.</p> : null}
+    {tab === "entries" ? <><EntryScopeTabs pathname={`/owners/${owner.id}`} params={{ tab: "entries" }} deleted={showDeleted} /><section className="overflow-hidden rounded-lg border bg-white">
+      <div className="flex items-center justify-between gap-2 border-b px-3 py-2"><h2 className="text-sm font-bold">{showDeleted ? "Deleted entries" : "Entries"}</h2><div className="flex items-center gap-2">{canEdit && partners.length > 1 ? <TransferForm partners={partners} defaultFromId={owner.id} /> : null}<span className="shrink-0 rounded-full border border-[#d5dbe6] bg-[#f7f8fa] px-3 py-1 text-xs text-[#647386]">Balance due <b className={`ml-1 font-mono text-sm ${tone(balance)}`}>{money(balance)}</b></span></div></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-xs"><thead className="bg-[#ffeebb] text-[#152235]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">ID</th><th className="px-3 py-2">Remarks</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">Partner share</th><th className="px-3 py-2 text-right">Balance</th>{canEdit && !showDeleted ? <th className="px-3 py-2 text-right">Actions</th> : null}</tr></thead>
+      <tbody>{pagedLedger.rows.map((row) => <tr key={`${row.kind}-${row.id}`} className={`cursor-default border-t border-white hover:brightness-95 ${Number(row.ownerShare) < 0 ? "bg-[#f8d7da]" : "bg-[#fff3cd]"}`}><td className="whitespace-nowrap px-3 py-2">{dayStamp(row.date, row.createdAt)}</td><td className="px-3 py-2">{row.companyName}</td><td className="px-3 py-2 font-mono font-semibold">{row.idValue}</td><td className="px-3 py-2">{row.remarks || "-"}</td><td className="px-3 py-2 text-right font-mono font-semibold">{money(row.amount)}</td><td className="px-3 py-2 text-right font-mono">{money(row.ownerShare)}</td><td className={`px-3 py-2 text-right font-mono font-semibold ${tone(row.balance)}`}>{money(row.balance)}</td>{canEdit && !showDeleted ? <td className="px-3 py-2"><div className="flex justify-end gap-1">{row.kind === "payment" ? <>{row.isTransfer ? <TransferForm partners={partners} entry={{ id: row.id, fromOwnerId: row.fromOwnerId, toOwnerId: row.toOwnerId, amount: String(Math.round(row.amount)), remarks: row.remarks === "INTERNAL TRANSFER" ? "" : row.remarks }} /> : <EditOwnerEntryForm entry={{ id: row.id, ownerId: owner.id, entryDate: dateInput(row.date), entryTime: timeInput(row.createdAt), direction: row.direction === "RECEIVED" ? "RECEIVED" : "PAID", amount: String(Math.round(row.amount)), remarks: row.remarks === "PAID TO PARTNER" || row.remarks === "RECEIVED FROM PARTNER" ? "" : row.remarks }} />}<ActionButton action={deleteOwnerEntryAction} fields={{ entryId: row.id }} label="Delete" danger confirmMessage={row.isTransfer ? "Delete this transfer from both partners?" : "Delete this partner entry?"} /></> : null}</div></td> : null}</tr>)}</tbody></table></div>
+      {!visibleLedger.length ? <p className="px-3 py-6 text-center text-xs text-[#647386]">{showDeleted ? "Nothing deleted." : "No entries yet."}</p> : null}
+      <Pagination pathname={`/owners/${owner.id}`} params={{ tab: "entries", deleted: showDeleted ? "1" : undefined }} page={pagedLedger.current} pages={pagedLedger.pages} total={pagedLedger.total} />
     </section>
-    {canEdit ? <OwnerEntryBar ownerId={owner.id} /> : null}
+    {canEdit && !showDeleted ? <OwnerEntryBar ownerId={owner.id} /> : null}
     </> : null}
   </>;
 }
