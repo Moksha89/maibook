@@ -47,7 +47,7 @@ export async function createIdentifierAction(_: ActionState, formData: FormData)
   }
 }
 
-const updateIdentifierSchema = identifierSchema.omit({ companyId: true, agentId: true }).extend({ identifierId: z.string().uuid() });
+const updateIdentifierSchema = identifierSchema.extend({ identifierId: z.string().uuid() });
 
 export async function updateIdentifierAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("identifiers.update");
@@ -55,24 +55,24 @@ export async function updateIdentifierAction(_: ActionState, formData: FormData)
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message, fieldErrors: parsed.error.flatten().fieldErrors };
   const existing = await db.agentIdentifier.findFirst({ where: { id: parsed.data.identifierId, deletedAt: null } });
   if (!existing) return { status: "error", message: "This ID no longer exists." };
+  const companyId = parsed.data.companyId ?? null;
+  const agentId = parsed.data.agentId ?? null;
   if (existing.companyId) await requireCompanyAccess(existing.companyId, "FULL");
+  if (companyId) await requireCompanyAccess(companyId, "FULL");
   const session = await requireSession();
-  const linkCompanyId = !existing.companyId ? String(formData.get("companyId") || "") || null : null;
-  if (linkCompanyId) await requireCompanyAccess(linkCompanyId, "FULL");
-  const companyId = existing.companyId ?? linkCompanyId;
-  const linkAgentId = !existing.agentId ? String(formData.get("agentId") || "") || null : null;
-  if ((existing.agentId || linkAgentId) && !String(formData.get("percentageRate") ?? "").trim()) return { status: "error", message: "Agent percentage is required when an agent is linked." };
-  if (linkAgentId) {
-    if (!companyId) return { status: "error", message: "Select a company for this agent." };
-    const assigned = await db.companyAgent.findUnique({ where: { companyId_agentId: { companyId, agentId: linkAgentId } } });
+  if (agentId && !companyId) return { status: "error", message: "Select a company for this agent." };
+  if (agentId && !String(formData.get("percentageRate") ?? "").trim()) return { status: "error", message: "Agent percentage is required when an agent is linked." };
+  if (agentId && companyId) {
+    const assigned = await db.companyAgent.findUnique({ where: { companyId_agentId: { companyId, agentId } } });
     if (!assigned || assigned.removedAt) return { status: "error", message: "The selected agent is not linked to this company." };
   }
+  const agentChanged = (existing.agentId ?? null) !== agentId;
   try {
     await db.$transaction(async (tx) => {
-      await tx.agentIdentifier.update({ where: { id: existing.id }, data: { ...(linkCompanyId ? { companyId: linkCompanyId } : {}), ...(linkAgentId ? { agentId: linkAgentId } : {}), value: parsed.data.value, normalizedValue: normalizeName(parsed.data.value), type: parsed.data.type, percentageRate: parsed.data.percentageRate } });
+      await tx.agentIdentifier.update({ where: { id: existing.id }, data: { companyId, agentId, value: parsed.data.value, normalizedValue: normalizeName(parsed.data.value), type: parsed.data.type, percentageRate: parsed.data.percentageRate } });
       if (!existing.percentageRate.eq(parsed.data.percentageRate)) await recordIdentifierShare(tx, existing.id, parsed.data.percentageRate);
-      if (linkAgentId) await recordIdentifierAgentAssignment(tx, existing.id, linkAgentId);
-      await tx.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.update", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { value: existing.value, type: existing.type, percentageRate: existing.percentageRate.toString() }, newValues: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate } } });
+      if (agentChanged) await recordIdentifierAgentAssignment(tx, existing.id, agentId);
+      await tx.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.update", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { companyId: existing.companyId, agentId: existing.agentId, value: existing.value, type: existing.type, percentageRate: existing.percentageRate.toString() }, newValues: { companyId, agentId, value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate } } });
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "This ID already exists on this site." };

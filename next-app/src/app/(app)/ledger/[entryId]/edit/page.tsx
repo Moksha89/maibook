@@ -1,7 +1,7 @@
 import { isUuid } from "@/lib/validation/common";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
-import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
+import { accessibleCompanyIds, requireCompanyAccess, requirePermission } from "@/lib/auth/permissions";
 import { db } from "@/lib/db";
 import { EditManualAgentForm, EditTransferForm } from "./edit-form";
 
@@ -13,8 +13,15 @@ export default async function EditLedgerEntryPage({ params }: { params: Promise<
   const manual = entry?.entryType === "MANUAL_AGENT" && entry.lines.length === 1;
   if (!entry || entry.deletedAt || (!manual && (entry.entryType !== "TRANSACTION" || entry.lines.length !== 2))) notFound();
   await requireCompanyAccess(entry.companyId, "FULL");
-  if (manual) return <><PageHeader title="Edit manual allocation" /><EditManualAgentForm entry={{ id: entry.id, amount: entry.lines[0].coins.toString(), entryDate: entry.entryDate.toISOString().slice(0, 10), remarks: entry.remarks || "" }} /></>;
+  const companyIds = await accessibleCompanyIds();
+  const companies = await db.company.findMany({
+    where: { deletedAt: null, status: "ACTIVE", ...(companyIds ? { id: { in: companyIds } } : {}) },
+    select: { id: true, name: true, agents: { where: { removedAt: null }, select: { agent: { select: { id: true, name: true } } }, orderBy: { agent: { name: "asc" } } } },
+    orderBy: { name: "asc" },
+  });
+  const options = companies.map((company) => ({ id: company.id, name: company.name, agents: company.agents.map(({ agent }) => agent) }));
+  if (manual) return <><PageHeader title="Edit manual allocation" /><EditManualAgentForm companies={options} entry={{ id: entry.id, companyId: entry.companyId, agentId: entry.lines[0].agentId!, amount: entry.lines[0].coins.toString(), entryDate: entry.entryDate.toISOString().slice(0, 10), remarks: entry.remarks || "" }} /></>;
   const sender = entry.lines.find((line) => line.coins.isNegative()) || entry.lines[0];
   const receiver = entry.lines.find((line) => line.id !== sender.id)!;
-  return <><PageHeader title="Edit transfer" /><EditTransferForm entry={{ id: entry.id, companyId: entry.companyId, coins: sender.coins.abs().toString(), rate: sender.rate.toString(), entryDate: entry.entryDate.toISOString().slice(0, 10), remarks: entry.remarks || "" }} /></>;
+  return <><PageHeader title="Edit transfer" /><EditTransferForm companies={options} entry={{ id: entry.id, companyId: entry.companyId, senderAgentId: sender.agentId!, receiverAgentId: receiver.agentId!, coins: sender.coins.abs().toString(), rate: sender.rate.toString(), entryDate: entry.entryDate.toISOString().slice(0, 10), remarks: entry.remarks || "" }} /></>;
 }

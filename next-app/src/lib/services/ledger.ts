@@ -130,31 +130,43 @@ export async function restoreLedgerEntry(entryId: string, actorId: string, reque
   });
 }
 
-export async function updateAgentTransfer(entryId: string, input: { coins: string | number; rate: string | number; entryDate: Date; remarks?: string; actorId: string; requestId: string }) {
+export async function updateAgentTransfer(entryId: string, input: { coins: string | number; rate: string | number; entryDate: Date; remarks?: string; companyId: string; senderAgentId: string; receiverAgentId: string; actorId: string; requestId: string }) {
   const coins = decimal(input.coins).abs().toDecimalPlaces(8);
   const rate = decimal(input.rate).toDecimalPlaces(8);
   if (coins.lte(0)) throw new Error("Coins must be greater than zero.");
   if (rate.lt(0)) throw new Error("Rate cannot be negative.");
+  if (input.senderAgentId === input.receiverAgentId) throw new Error("Sender and receiver must be different agents.");
   return financialTransaction(async (tx) => {
     const entry = await tx.ledgerEntry.findUniqueOrThrow({ where: { id: entryId }, include: { lines: { where: { accountType: "AGENT" }, orderBy: { sequence: "asc" } } } });
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${entry.companyId}))`;
+    const companyIds = [...new Set([entry.companyId, input.companyId])].sort();
+    for (const companyId of companyIds) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}))`;
     if (entry.deletedAt) throw new Error("Restore the entry before editing it.");
     if (entry.entryType !== "TRANSACTION" || entry.lines.length !== 2 || !entry.lines[0].agentId || !entry.lines[1].agentId) throw new Error("Only two-agent transfers can be edited here.");
-    const agentIds = entry.lines.map((line) => line.agentId!).sort();
-    await tx.$queryRaw`SELECT "agent_id" FROM "company_agents" WHERE "company_id" = ${entry.companyId}::uuid AND "agent_id" IN (${Prisma.join(agentIds.map((id) => Prisma.sql`${id}::uuid`))}) ORDER BY "agent_id" FOR UPDATE`;
     const senderLine = entry.lines.find((line) => line.coins.isNegative()) || entry.lines[0];
     const receiverLine = entry.lines.find((line) => line.id !== senderLine.id)!;
+    const oldTargets = [
+      { companyId: entry.companyId, agentId: senderLine.agentId! },
+      { companyId: entry.companyId, agentId: receiverLine.agentId! },
+    ];
+    const newAgents = [input.senderAgentId, input.receiverAgentId].sort();
+    await tx.$queryRaw`SELECT "agent_id" FROM "company_agents" WHERE "company_id" = ${input.companyId}::uuid AND "agent_id" IN (${Prisma.join(newAgents.map((id) => Prisma.sql`${id}::uuid`))}) AND "removed_at" IS NULL ORDER BY "agent_id" FOR UPDATE`;
+    const assigned = await tx.companyAgent.findMany({ where: { companyId: input.companyId, agentId: { in: newAgents }, removedAt: null } });
+    if (assigned.length !== 2) throw new Error("Both agents must be assigned to the selected company.");
     const senderCash = calculateCashValue(coins.neg(), rate);
     const receiverCash = calculateCashValue(coins, rate);
     const senderAmounts = splitCreditDebit(senderCash);
     const receiverAmounts = splitCreditDebit(receiverCash);
     await Promise.all([
-      tx.ledgerEntry.update({ where: { id: entryId }, data: { entryDate: input.entryDate, remarks: input.remarks || null } }),
-      tx.ledgerEntryLine.update({ where: { id: senderLine.id }, data: { coins: prismaDecimal(coins.neg()), rate: prismaDecimal(rate), cashValue: prismaDecimal(senderCash), credit: prismaDecimal(senderAmounts.credit), debit: prismaDecimal(senderAmounts.debit) } }),
-      tx.ledgerEntryLine.update({ where: { id: receiverLine.id }, data: { coins: prismaDecimal(coins), rate: prismaDecimal(rate), cashValue: prismaDecimal(receiverCash), credit: prismaDecimal(receiverAmounts.credit), debit: prismaDecimal(receiverAmounts.debit) } }),
+      tx.ledgerEntry.update({ where: { id: entryId }, data: { companyId: input.companyId, entryDate: input.entryDate, remarks: input.remarks || null } }),
+      tx.ledgerEntryLine.update({ where: { id: senderLine.id }, data: { companyId: input.companyId, agentId: input.senderAgentId, coins: prismaDecimal(coins.neg()), rate: prismaDecimal(rate), cashValue: prismaDecimal(senderCash), credit: prismaDecimal(senderAmounts.credit), debit: prismaDecimal(senderAmounts.debit) } }),
+      tx.ledgerEntryLine.update({ where: { id: receiverLine.id }, data: { companyId: input.companyId, agentId: input.receiverAgentId, coins: prismaDecimal(coins), rate: prismaDecimal(rate), cashValue: prismaDecimal(receiverCash), credit: prismaDecimal(receiverAmounts.credit), debit: prismaDecimal(receiverAmounts.debit) } }),
     ]);
-    for (const agentId of agentIds) await recalculateAgentBalances(tx, entry.companyId, agentId);
-    await tx.auditLog.create({ data: { actorId: input.actorId, companyId: entry.companyId, action: "ledger.transfer.update", entityType: "LedgerEntry", entityId: entryId, requestId: input.requestId, oldValues: { coins: senderLine.coins.abs().toString(), rate: senderLine.rate.toString(), entryDate: entry.entryDate.toISOString(), remarks: entry.remarks }, newValues: { coins: coins.toString(), rate: rate.toString(), entryDate: input.entryDate.toISOString(), remarks: input.remarks || null } } });
+    const recalc = new Map<string, { companyId: string; agentId: string }>();
+    for (const target of [...oldTargets, { companyId: input.companyId, agentId: input.senderAgentId }, { companyId: input.companyId, agentId: input.receiverAgentId }]) {
+      recalc.set(`${target.companyId}:${target.agentId}`, target);
+    }
+    for (const target of recalc.values()) await recalculateAgentBalances(tx, target.companyId, target.agentId);
+    await tx.auditLog.create({ data: { actorId: input.actorId, companyId: input.companyId, action: "ledger.transfer.update", entityType: "LedgerEntry", entityId: entryId, requestId: input.requestId, oldValues: { companyId: entry.companyId, senderAgentId: senderLine.agentId, receiverAgentId: receiverLine.agentId, coins: senderLine.coins.abs().toString(), rate: senderLine.rate.toString(), entryDate: entry.entryDate.toISOString(), remarks: entry.remarks }, newValues: { companyId: input.companyId, senderAgentId: input.senderAgentId, receiverAgentId: input.receiverAgentId, coins: coins.toString(), rate: rate.toString(), entryDate: input.entryDate.toISOString(), remarks: input.remarks || null } } });
     return entry;
   });
 }
@@ -182,21 +194,26 @@ export async function recalculateNonAgentBalances(tx: TransactionClient, company
 }
 
 /** Edits one manual agent allocation (a signed amount posted by Manual distribution). */
-export async function updateManualAgentEntry(entryId: string, input: { amount: string | number; entryDate: Date; remarks?: string; actorId: string; requestId: string }) {
+export async function updateManualAgentEntry(entryId: string, input: { amount: string | number; entryDate: Date; remarks?: string; companyId: string; agentId: string; actorId: string; requestId: string }) {
   const amount = decimal(input.amount).toDecimalPlaces(8);
   if (amount.isZero()) throw new Error("Amount cannot be zero.");
   return financialTransaction(async (tx) => {
     const entry = await tx.ledgerEntry.findUniqueOrThrow({ where: { id: entryId }, include: { lines: { where: { accountType: "AGENT" }, orderBy: { sequence: "asc" } } } });
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${entry.companyId}))`;
+    const companyIds = [...new Set([entry.companyId, input.companyId])].sort();
+    for (const companyId of companyIds) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}))`;
     if (entry.deletedAt) throw new Error("Restore the entry before editing it.");
     if (entry.entryType !== "MANUAL_AGENT" || entry.lines.length !== 1 || !entry.lines[0].agentId) throw new Error("Only manual agent allocations can be edited here.");
     const line = entry.lines[0];
-    await tx.$queryRaw`SELECT "agent_id" FROM "company_agents" WHERE "company_id" = ${entry.companyId}::uuid AND "agent_id" = ${line.agentId!}::uuid FOR UPDATE`;
+    await tx.$queryRaw`SELECT "agent_id" FROM "company_agents" WHERE "company_id" = ${input.companyId}::uuid AND "agent_id" = ${input.agentId}::uuid AND "removed_at" IS NULL FOR UPDATE`;
+    const assigned = await tx.companyAgent.findUnique({ where: { companyId_agentId: { companyId: input.companyId, agentId: input.agentId } } });
+    if (!assigned || assigned.removedAt) throw new Error("The selected agent is not linked to this company.");
     const split = splitCreditDebit(amount);
-    await tx.ledgerEntry.update({ where: { id: entryId }, data: { entryDate: input.entryDate, remarks: input.remarks || null } });
-    await tx.ledgerEntryLine.update({ where: { id: line.id }, data: { coins: prismaDecimal(amount), cashValue: prismaDecimal(amount), rate: 1, credit: prismaDecimal(split.credit), debit: prismaDecimal(split.debit) } });
-    await recalculateAgentBalances(tx, entry.companyId, line.agentId!);
-    await tx.auditLog.create({ data: { actorId: input.actorId, companyId: entry.companyId, action: "ledger.manual_agent.update", entityType: "LedgerEntry", entityId: entryId, requestId: input.requestId, oldValues: { amount: line.coins.toString(), entryDate: entry.entryDate.toISOString(), remarks: entry.remarks }, newValues: { amount: amount.toString(), entryDate: input.entryDate.toISOString(), remarks: input.remarks || null } } });
+    await tx.ledgerEntry.update({ where: { id: entryId }, data: { companyId: input.companyId, entryDate: input.entryDate, remarks: input.remarks || null } });
+    await tx.ledgerEntryLine.update({ where: { id: line.id }, data: { companyId: input.companyId, agentId: input.agentId, coins: prismaDecimal(amount), cashValue: prismaDecimal(amount), rate: 1, credit: prismaDecimal(split.credit), debit: prismaDecimal(split.debit) } });
+    const recalc = new Map<string, { companyId: string; agentId: string }>();
+    for (const target of [{ companyId: entry.companyId, agentId: line.agentId! }, { companyId: input.companyId, agentId: input.agentId }]) recalc.set(`${target.companyId}:${target.agentId}`, target);
+    for (const target of recalc.values()) await recalculateAgentBalances(tx, target.companyId, target.agentId);
+    await tx.auditLog.create({ data: { actorId: input.actorId, companyId: input.companyId, action: "ledger.manual_agent.update", entityType: "LedgerEntry", entityId: entryId, requestId: input.requestId, oldValues: { companyId: entry.companyId, agentId: line.agentId, amount: line.coins.toString(), entryDate: entry.entryDate.toISOString(), remarks: entry.remarks }, newValues: { companyId: input.companyId, agentId: input.agentId, amount: amount.toString(), entryDate: input.entryDate.toISOString(), remarks: input.remarks || null } } });
     return entry;
   });
 }

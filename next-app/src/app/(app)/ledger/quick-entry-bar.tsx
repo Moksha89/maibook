@@ -7,7 +7,7 @@ import { Check, Coins, MessageSquare, Pencil, Percent, RotateCcw, Trash2, UserRo
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
-import { useModalAction } from "@/components/ui/use-modal-action";
+import { messageForServerActionError, useModalAction } from "@/components/ui/use-modal-action";
 import type { ActionState } from "@/lib/actions/types";
 import { createTransferAction, deleteLedgerEntryAction, restoreLedgerEntryAction, updateLedgerEntryAction } from "./actions";
 import { selectEntry, useSelectedEntry } from "./entry-row";
@@ -33,7 +33,8 @@ export function QuickEntryBar({ companies, remarkOptions, initialIdempotencyKey,
   const [companyId, setCompanyId] = useState(fixedCompanyId ?? companies[0]?.id ?? "");
   const company = companies.find((item) => item.id === companyId) ?? companies[0];
   const [agentChoice, setAgentChoice] = useState("");
-  const ownerId = fixedAgentId ?? agentChoice;
+  const [editing, setEditing] = useState<EntryRowData | null>(null);
+  const ownerId = editing && agentChoice ? agentChoice : (fixedAgentId ?? agentChoice);
   const owner = company?.agents.find((agent) => agent.id === ownerId);
   const [name, setName] = useState("");
   const [coins, setCoins] = useState("");
@@ -42,7 +43,6 @@ export function QuickEntryBar({ companies, remarkOptions, initialIdempotencyKey,
   const [clientError, setClientError] = useState("");
   const router = useRouter();
   const selected = useSelectedEntry();
-  const [editing, setEditing] = useState<EntryRowData | null>(null);
   const [busy, startBusy] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState<EntryRowData | null>(null);
   useEffect(() => { if (!confirmDelete) return; const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setConfirmDelete(null); }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, [confirmDelete]);
@@ -76,15 +76,24 @@ export function QuickEntryBar({ companies, remarkOptions, initialIdempotencyKey,
     const restoring = target.deleted;
     const data = new FormData(); data.set("entryId", target.entryId);
     startBusy(async () => {
-      try { await (restoring ? restoreLedgerEntryAction : deleteLedgerEntryAction)(data); setClientError(""); setConfirmDelete(null); selectEntry(null); if (editing?.entryId === target.entryId) clear(); router.refresh(); }
-      catch (error) { setClientError(error instanceof Error ? error.message : "The entry could not be changed."); }
+      try {
+        await (restoring ? restoreLedgerEntryAction : deleteLedgerEntryAction)(data);
+        setClientError(""); setConfirmDelete(null); selectEntry(null); if (editing?.entryId === target.entryId) clear(); router.refresh();
+      } catch (error) {
+        const result = messageForServerActionError(error);
+        setClientError(result.message);
+        if (result.reload) setTimeout(() => window.location.reload(), 1500);
+      }
     });
   }
   function modify() {
     if (!selected) { setClientError("Click an entry in the table first."); return; }
     if (selected.deleted) { setClientError("Restore the entry before modifying it."); return; }
     if (!selected.editable) { setClientError("Only agent-to-agent transfers can be modified here."); return; }
-    setEditing(selected); setName(selected.counterparty.toUpperCase()); setCoins(String(Number(selected.coins))); setRate(String(Number(selected.rate))); setRemarks(selected.remarks.toUpperCase()); setClientError("");
+    setEditing(selected);
+    if (selected.companyId) setCompanyId(selected.companyId);
+    if (selected.ownerAgentId) setAgentChoice(selected.ownerAgentId);
+    setName(selected.counterparty.toUpperCase()); setCoins(String(Number(selected.coins))); setRate(String(Number(selected.rate))); setRemarks(selected.remarks.toUpperCase()); setClientError("");
   }
   function submitUpdate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -93,7 +102,11 @@ export function QuickEntryBar({ companies, remarkOptions, initialIdempotencyKey,
     if (!Number.isFinite(value) || value === 0) { setClientError("Enter the coins."); return; }
     if (Math.sign(value) !== Math.sign(Number(editing.coins))) { setClientError("The direction (sent or received) can't change. Delete the entry and enter it again."); return; }
     const data = new FormData();
-    data.set("entryId", editing.entryId); data.set("companyId", company.id); data.set("coins", String(Math.abs(value))); data.set("rate", rate); data.set("entryDate", editing.entryDate); data.set("remarks", remarks);
+    if (!owner || !counterparty) { setClientError("Select a valid agent of this company in Name."); return; }
+    data.set("entryId", editing.entryId); data.set("companyId", company.id);
+    data.set("senderAgentId", value > 0 ? counterparty.id : owner.id);
+    data.set("receiverAgentId", value > 0 ? owner.id : counterparty.id);
+    data.set("coins", String(Math.abs(value))); data.set("rate", rate); data.set("entryDate", editing.entryDate); data.set("remarks", remarks);
     startBusy(async () => {
       const result = await updateLedgerEntryAction({} as ActionState, data);
       if (result.status === "error") { setClientError(result.message || "The entry could not be updated."); return; }
@@ -118,10 +131,10 @@ export function QuickEntryBar({ companies, remarkOptions, initialIdempotencyKey,
       <input type="hidden" name="receiverAgentId" value={received ? owner?.id ?? "" : counterparty?.id ?? ""} />
       <input type="hidden" name="coins" value={Number.isFinite(amount) && amount !== 0 ? String(Math.abs(amount)) : ""} />
       <div className="flex flex-wrap items-center gap-1.5 lg:flex-nowrap [&_[role=alert]]:hidden [&_select]:h-8 [&_select]:text-xs [&_.rounded-full]:!h-8 [&_.rounded-full]:!text-xs [&_.w-8]:!w-6 [&_.w-8_svg]:!size-3.5">
-        {fixedCompanyId ? null : <Select className="w-32 shrink-0" aria-label="Company" value={company?.id ?? ""} onChange={(event) => setCompanyId(event.target.value)}>{companies.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>}
-        {fixedAgentId ? null : <Select className="w-32 shrink-0" aria-label="Agent (ledger owner)" value={agentChoice} onChange={(event) => setAgentChoice(event.target.value)}><option value="">Agent…</option>{company?.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</Select>}
+        {fixedCompanyId && !editing ? null : <Select className="w-32 shrink-0" aria-label="Company" value={company?.id ?? ""} onChange={(event) => setCompanyId(event.target.value)}>{companies.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>}
+        {fixedAgentId && !editing ? null : <Select className="w-32 shrink-0" aria-label="Agent (ledger owner)" value={fixedAgentId && !editing ? ownerId : (agentChoice || ownerId)} onChange={(event) => setAgentChoice(event.target.value)}><option value="">Agent…</option>{company?.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</Select>}
         <div role="status" aria-label={counterparty ? `${counterparty.name} balance` : "Balance"} title={counterparty ? `${counterparty.name} balance` : "Balance"} className="flex h-8 w-24 shrink-0 items-center gap-1 overflow-hidden rounded-full border border-[#d5dbe6] bg-[#f7f8fa] px-2 text-xs text-[#152235]"><Wallet className="size-3.5 shrink-0 text-[#647386]" /><span className="truncate font-mono">{counterparty ? <span className={balanceTone(counterparty.balance)}>{Number(counterparty.balance).toLocaleString(undefined, { maximumFractionDigits: 0, signDisplay: "negative" })}</span> : null}</span></div>
-        <div className="min-w-0 flex-[1.3] basis-32 [&_input]:uppercase [&_li]:uppercase"><AutocompleteInput inputRef={nameRef} name="counterpartyName" aria-label="Name (counterparty)" icon={UserRound} required uppercase options={names.map((agent) => agent.name.toUpperCase())} value={name} onValueChange={setName} openUp={false} requireQuery inlineComplete readOnly={Boolean(editing)} /></div>
+        <div className="min-w-0 flex-[1.3] basis-32 [&_input]:uppercase [&_li]:uppercase"><AutocompleteInput inputRef={nameRef} name="counterpartyName" aria-label="Name (counterparty)" icon={UserRound} required uppercase options={names.map((agent) => agent.name.toUpperCase())} value={name} onValueChange={setName} openUp={false} requireQuery inlineComplete /></div>
         
         <Input className="w-24 shrink-0" aria-label="Coins" icon={Coins} inputMode="decimal" autoComplete="off" required value={coins} onChange={(event) => setCoins(event.target.value.replace(/[^0-9.\-]/g, ""))} />
         <Input className="w-[4.5rem] shrink-0" name="rate" aria-label="Rate" icon={Percent} inputMode="decimal" autoComplete="off" required value={rate} onChange={(event) => setRate(event.target.value.replace(/[^0-9.]/g, ""))} />

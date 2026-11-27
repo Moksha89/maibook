@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import type { MouseEvent, ReactNode } from "react";
 
 /** One ledger line as the entry bar needs it (coins signed from the row owner's point of view). */
-export interface EntryRowData { entryId: string; lineId: string; editable: boolean; deleted: boolean; modified: boolean; counterparty: string; coins: string; rate: string; remarks: string; entryDate: string }
+export interface EntryRowData { entryId: string; lineId: string; editable: boolean; deleted: boolean; modified: boolean; counterparty: string; coins: string; rate: string; remarks: string; entryDate: string; companyId?: string; ownerAgentId?: string; counterpartyAgentId?: string }
 
 // Tiny shared store: the table rows (server-rendered list) and the entry bar are separate client islands.
 let current: EntryRowData | null = null;

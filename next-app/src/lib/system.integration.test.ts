@@ -238,7 +238,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("HTTP APIs and per
     const entry = await postAgentTransfer(transfer({ entryDate: new Date("2026-01-10"), coins: "5" }));
     const lines = await db.ledgerEntryLine.findMany({ where: { companyId: companyIds[0], agentId: agentIds[1] }, include: { entry: true }, orderBy: { entry: { entryDate: "asc" } } });
     expect(lines.map((line) => line.closingBalance.toString())).toEqual(["5", "15"]);
-    await updateAgentTransfer(entry.id, { coins: "7", rate: "3", entryDate: new Date("2026-01-10"), ...context });
+    await updateAgentTransfer(entry.id, { coins: "7", rate: "3", entryDate: new Date("2026-01-10"), companyId: companyIds[0], senderAgentId: agentIds[0], receiverAgentId: agentIds[1], ...context });
     await softDeleteLedgerEntry(entry.id, context.actorId, prefix);
     expect((await db.companyAgent.findUniqueOrThrow({ where: { companyId_agentId: { companyId: companyIds[0], agentId: agentIds[1] } } })).currentBalance.toString()).toBe("10");
     await restoreLedgerEntry(entry.id, context.actorId, prefix);
