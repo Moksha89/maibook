@@ -10,6 +10,7 @@ import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { normalizePhone } from "@/lib/domain/normalization";
 import { initializeWhatsAppSession, logoutWhatsAppSession, whatsAppSessionStatus } from "@/lib/services/whatsapp-bridge";
+import { clearLocalUnread, requestEarlierMessages } from "@/lib/services/whatsapp-chat";
 
 async function defaultConnection() { return db.whatsAppConnection.upsert({ where: { name: "Primary" }, update: {}, create: { name: "Primary", sessionKey: randomUUID() } }); }
 
@@ -96,4 +97,23 @@ export async function retryWhatsAppDeliveryAction(_: ActionState, formData: Form
   });
   revalidatePath("/whatsapp");
   return { status: "success", message: "Delivery re-queued." };
+}
+
+export async function loadEarlierMessagesAction(formData: FormData): Promise<void> {
+  await requirePermission("whatsapp.read");
+  const jid = String(formData.get("jid") || "");
+  if (!jid) return;
+  const connection = await defaultConnection();
+  try { await requestEarlierMessages({ id: connection.id, sessionKey: connection.sessionKey }, jid); }
+  catch { /* history is best-effort */ }
+  revalidatePath("/whatsapp");
+}
+
+export async function openChatAction(formData: FormData): Promise<void> {
+  await requirePermission("whatsapp.read");
+  const jid = String(formData.get("jid") || "");
+  if (!jid) return;
+  const connection = await defaultConnection();
+  await clearLocalUnread(connection.id, jid);
+  revalidatePath("/whatsapp");
 }

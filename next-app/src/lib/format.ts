@@ -47,3 +47,40 @@ export function dayStamp(day: DateLike, at?: DateLike): string {
   const ist = new Date(time.getTime() + IST_MS);
   return `${label} ${pad(ist.getUTCHours())}:${pad(ist.getUTCMinutes())}`;
 }
+
+function istParts(value: DateLike) {
+  const date = toDate(value);
+  if (!date || Number.isNaN(date.getTime())) return null;
+  const ist = new Date(date.getTime() + IST_MS);
+  return { date, ist, day: ist.getUTCDate(), month: ist.getUTCMonth(), year: ist.getUTCFullYear(), hours: ist.getUTCHours(), minutes: ist.getUTCMinutes(), weekday: ist.getUTCDay() };
+}
+
+/** Clock time in the same zone as stamp(), e.g. "22:15". */
+export function chatClock(value: DateLike): string {
+  const parts = istParts(value);
+  return parts ? `${pad(parts.hours)}:${pad(parts.minutes)}` : "";
+}
+
+/** Date separator label: "TODAY", "YESTERDAY", or "17th NOV 2026". */
+export function chatDayLabel(value: DateLike, now: DateLike = new Date()): string {
+  const parts = istParts(value);
+  const today = istParts(now);
+  if (!parts || !today) return "";
+  const key = (p: NonNullable<ReturnType<typeof istParts>>) => `${p.year}-${p.month}-${p.day}`;
+  if (key(parts) === key(today)) return "TODAY";
+  const yesterday = istParts(new Date((today.date as Date).getTime() - 24 * 3600_000));
+  if (yesterday && key(parts) === key(yesterday)) return "YESTERDAY";
+  return `${ordinal(parts.day)} ${MONTHS[parts.month]} ${parts.year}`;
+}
+
+/** Chat list timestamp: time if today, YESTERDAY, or "17th NOV". */
+export function chatListTime(value: DateLike, now: DateLike = new Date()): string {
+  const parts = istParts(value);
+  const today = istParts(now);
+  if (!parts || !today) return "";
+  if (parts.year === today.year && parts.month === today.month && parts.day === today.day) return chatClock(value);
+  const label = chatDayLabel(value, now);
+  if (label === "YESTERDAY") return "YESTERDAY";
+  if (parts.year === today.year) return `${ordinal(parts.day)} ${MONTHS[parts.month]}`;
+  return `${ordinal(parts.day)} ${MONTHS[parts.month]} ${parts.year}`;
+}

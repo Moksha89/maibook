@@ -16,6 +16,7 @@ import { pageRows } from "@/lib/paging";
 import { initializeWhatsAppAction, logoutWhatsAppAction } from "./actions";
 import { DeliveryForm } from "./delivery-form";
 import { stamp } from "@/lib/format";
+import { refreshChatsFromBridge, seedChatsFromDeliveries } from "@/lib/services/whatsapp-chat";
 import { WhatsAppChat } from "./whatsapp-chat";
 
 export const metadata: Metadata = { title: "WhatsApp" };
@@ -48,7 +49,22 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
     db.reportDelivery.findMany({ where: { report: { company: accessFilter } }, include: { report: { include: { company: { select: { name: true } } } } }, orderBy: { createdAt: "desc" } }),
     db.whatsAppMessage.findMany({ orderBy: { createdAt: "desc" }, take: 2000 }),
   ]);
-  const qrData = connection?.qrCode && connection.status === "QR_READY" ? await QRCode.toDataURL(connection.qrCode, { width: 220, margin: 1, errorCorrectionLevel: "M" }) : null;
+  let chatList: { jid: string; name: string | null; isGroup: boolean; lastMessageAt: Date | null; lastPreview: string | null; lastDirection: "IN" | "OUT" | null; lastAck: "PENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED" | null; unreadCount: number }[] = [];
+  let chatMessages: { id: string; providerMessageId: string; fromMe: boolean; body: string | null; mediaType: "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "DOCUMENT" | "STICKER" | "LOCATION" | "CONTACT" | "UNKNOWN"; mediaFilename: string | null; ack: "PENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED"; timestamp: Date }[] = [];
+  let inboundStored = false;
+  if (tab === "chat" && connection) {
+    const existingChats = await db.whatsAppChat.count({ where: { connectionId: connection.id } });
+    if (!existingChats) await seedChatsFromDeliveries(connection.id).catch(() => undefined);
+    await refreshChatsFromBridge(connection).catch(() => undefined);
+    const rows = await db.whatsAppChat.findMany({ where: { connectionId: connection.id }, orderBy: { lastMessageAt: "desc" } });
+    chatList = rows.map((row) => ({ jid: row.jid, name: row.name, isGroup: row.isGroup, lastMessageAt: row.lastMessageAt, lastPreview: row.lastPreview, lastDirection: row.lastDirection, lastAck: row.lastAck, unreadCount: row.unreadCount }));
+    const active = query.chat && rows.some((row) => row.jid === query.chat) ? query.chat : rows[0]?.jid;
+    if (active) {
+      chatMessages = await db.whatsAppChatMessage.findMany({ where: { connectionId: connection.id, chat: { jid: active } }, orderBy: { timestamp: "asc" } });
+    }
+    inboundStored = (await db.whatsAppChatMessage.count({ where: { connectionId: connection.id, fromMe: false } })) > 0;
+  }
+    const qrData = connection?.qrCode && connection.status === "QR_READY" ? await QRCode.toDataURL(connection.qrCode, { width: 220, margin: 1, errorCorrectionLevel: "M" }) : null;
   const reportOptions = reports.map((report) => ({ id: report.id, label: `${report.company?.name || "Company"} · ${report.type.replaceAll("_", " ")} · ${report.format} · ${stamp(report.generatedAt)}` }));
   const enabled = process.env.WHATSAPP_DELIVERY_ENABLED === "true";
   const byDelivery = new Map(deliveries.map((row) => [row.id, row]));
@@ -92,7 +108,7 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
   const statusTone = (value: string) => value === "DELIVERED" ? "success" : value === "FAILED" ? "danger" : value === "SENT" ? "neutral" : "warning";
 
   return <>
-    <LiveRefresh active={connection?.status === "INITIALIZING" || connection?.status === "QR_READY"} />
+    <LiveRefresh active={tab === "chat" || connection?.status === "INITIALIZING" || connection?.status === "QR_READY"} intervalMs={tab === "chat" ? 5000 : 3000} />
     <PageHeader title="WhatsApp" />
     <div className="mb-3 grid gap-3 lg:grid-cols-[300px_1fr]">
       <section className="rounded-lg border bg-white p-3">
@@ -110,7 +126,7 @@ export default async function WhatsAppPage({ searchParams }: { searchParams: Pro
     {canSend && reportOptions.length ? <DeliveryForm reports={reportOptions} /> : null}
     <Tabs className="mt-3 mb-3" label="WhatsApp history" minTabWidth={160} active={tab} items={[{ key: "history", label: "Delivery history", href: "/whatsapp?tab=history" }, { key: "chat", label: "Web WhatsApp", href: "/whatsapp?tab=chat" }]} />
     {tab === "chat" ? (
-      <WhatsAppChat rows={history} selected={query.chat} inboundStored={false} bodiesStored={false} />
+      <WhatsAppChat chats={chatList} messages={chatMessages} selected={query.chat} historyAvailable={inboundStored} connected={connection?.status === "CONNECTED"} />
     ) : (
       <section className="overflow-hidden rounded-lg border bg-white">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">

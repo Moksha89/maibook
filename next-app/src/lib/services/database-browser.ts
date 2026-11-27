@@ -15,7 +15,7 @@ export const CORE_TABLES = new Set([
   "owner_phone_numbers", "owner_share_history", "owners", "permissions", "report_deliveries", "report_templates",
   "role_permissions", "roles", "sessions", "settlements", "shareholder_entries", "shareholders", "sites",
   "upline_entries", "upline_group_members", "upline_groups", "uplines", "user_permission_overrides",
-  "user_roles", "users", "whatsapp_connections", "whatsapp_messages",
+  "user_roles", "users", "whatsapp_connections", "whatsapp_messages", "whatsapp_chats", "whatsapp_chat_messages",
 ]);
 
 export function assertIdent(name: string, label = "Name") {

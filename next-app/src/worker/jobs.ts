@@ -6,6 +6,7 @@ import { sendEmail } from "../lib/services/email";
 import { renderPdf, renderPng, reportFileName } from "../lib/services/report-render";
 import { getBranding } from "../lib/services/branding";
 import { sendWhatsAppReport } from "../lib/services/whatsapp-bridge";
+import { recordOutboundChatMessage } from "../lib/services/whatsapp-chat";
 
 const whatsappPayload = z.object({ deliveryId: z.string().uuid(), connectionId: z.string().uuid() });
 const emailPayload = z.object({ to: z.email(), subject: z.string().min(1), text: z.string() });
@@ -47,10 +48,25 @@ async function deliverWhatsApp(payload: Prisma.JsonValue) {
     imageBase64: image?.toString("base64"), imageFilename: image ? reportFileName(table.title, "png") : undefined,
     documentBase64: document?.toString("base64"), documentFilename: document ? reportFileName(table.title, "pdf") : undefined, documentMimetype: document ? "application/pdf" : undefined,
   });
+  const sentAt = new Date();
   await db.$transaction([
-    db.reportDelivery.updateMany({ where: { id: delivery.id, status: { not: "DELIVERED" } }, data: { status: "SENT", sentAt: new Date(), attemptCount: { increment: 1 }, lastError: null, nextAttemptAt: null } }),
-    db.whatsAppMessage.updateMany({ where: { deliveryId: delivery.id, status: { not: "DELIVERED" } }, data: { status: "SENT", sentAt: new Date(), attemptCount: { increment: 1 }, lastError: null, providerMessageId: result.messageId } }),
+    db.reportDelivery.updateMany({ where: { id: delivery.id, status: { not: "DELIVERED" } }, data: { status: "SENT", sentAt, attemptCount: { increment: 1 }, lastError: null, nextAttemptAt: null } }),
+    db.whatsAppMessage.updateMany({ where: { deliveryId: delivery.id, status: { not: "DELIVERED" } }, data: { status: "SENT", sentAt, attemptCount: { increment: 1 }, lastError: null, providerMessageId: result.messageId } }),
   ]);
+  const mediaType = delivery.mode === "PDF" ? "DOCUMENT" as const : delivery.mode === "IMAGE" || delivery.mode === "BOTH" ? "IMAGE" as const : "TEXT" as const;
+  const filename = document ? reportFileName(table.title, "pdf") : image ? reportFileName(table.title, "png") : null;
+  if (result.messageId) {
+    await recordOutboundChatMessage({
+      connectionId: connection.id,
+      recipient: delivery.recipient,
+      providerMessageId: result.messageId,
+      body: delivery.mode === "PDF" ? table.title : text || table.title,
+      mediaType,
+      mediaFilename: filename ?? null,
+      ack: "SENT",
+      timestamp: sentAt,
+    }).catch(() => undefined);
+  }
 }
 
 export async function executeJob(job: Job) {

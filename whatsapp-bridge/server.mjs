@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import pino from "pino";
 import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState } from "@whiskeysockets/baileys";
+import { attachChatHandlers, getRawMessage, listChats, listMessages, snapshot, syncHistory } from "./chat-history.mjs";
 
 const TOKEN = process.env.BRIDGE_TOKEN || "";
 const HOST = process.env.BRIDGE_HOST || "127.0.0.1";
@@ -96,9 +97,21 @@ async function connect(sessionKey, state) {
   let version;
   try { version = (await fetchLatestBaileysVersion()).version; } catch { /* use bundled default */ }
   log("whatsapp web version", Array.isArray(version) ? version.join(".") : "bundled default");
-  const sock = makeWASocket({ auth, version, logger, browser: Browsers.ubuntu("Maibook"), printQRInTerminal: false, markOnlineOnConnect: false, syncFullHistory: false, generateHighQualityLinkPreview: false });
+  const sock = makeWASocket({
+    auth,
+    version,
+    logger,
+    browser: Browsers.ubuntu("Maibook"),
+    printQRInTerminal: false,
+    markOnlineOnConnect: false,
+    syncFullHistory: true,
+    shouldSyncHistoryMessage: () => true,
+    generateHighQualityLinkPreview: false,
+    getMessage: async (key) => getRawMessage(sessionKey, key?.id) || undefined,
+  });
   state.sock = sock;
   sock.ev.on("creds.update", saveCreds);
+  attachChatHandlers(sock, sessionKey, notify);
   // Raw protocol acknowledgements (attributes only, never message content) so delivery problems can be diagnosed from the journal.
   sock.ws.on("CB:ack,class:message", (node) => {
     const { id, error, phash } = node.attrs || {};
@@ -253,6 +266,31 @@ const server = http.createServer(async (request, response) => {
     if (!authorised(request)) return send(401, { error: "Unauthorized" });
     const status = /^\/v1\/messages\/([A-Za-z0-9]{6,64})$/.exec(url.pathname);
     if (request.method === "GET" && status) return send(200, acks.get(status[1]) || { status: "UNKNOWN" });
+    const chatList = /^\/v1\/sessions\/([^/]+)\/chats$/.exec(url.pathname);
+    if (request.method === "GET" && chatList) {
+      const sessionKey = decodeURIComponent(chatList[1]);
+      if (!validKey(sessionKey)) return send(400, { error: "Invalid session key" });
+      return send(200, { chats: listChats(sessionKey) });
+    }
+    const chatMessages = /^\/v1\/sessions\/([^/]+)\/chats\/([^/]+)\/messages$/.exec(url.pathname);
+    if (request.method === "GET" && chatMessages) {
+      const sessionKey = decodeURIComponent(chatMessages[1]);
+      if (!validKey(sessionKey)) return send(400, { error: "Invalid session key" });
+      const jid = decodeURIComponent(chatMessages[2]);
+      const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") || 200)));
+      const before = url.searchParams.get("before");
+      return send(200, { jid, messages: listMessages(sessionKey, jid, { limit, before }) });
+    }
+    const history = /^\/v1\/sessions\/([^/]+)\/sync-history$/.exec(url.pathname);
+    if (request.method === "POST" && history) {
+      const sessionKey = decodeURIComponent(history[1]);
+      if (!validKey(sessionKey)) return send(400, { error: "Invalid session key" });
+      const state = sessions.get(sessionKey);
+      if (!state?.sock || state.status !== "CONNECTED") { const error = new Error("WhatsApp is not connected."); error.status = 409; throw error; }
+      const body = await readJson(request).catch(() => ({}));
+      const result = await syncHistory(state.sock, sessionKey, body || {});
+      return send(200, { ...result, ...snapshot(sessionKey) });
+    }
     const match = /^\/v1\/sessions\/([^/]+)\/(initialize|logout|messages|diagnostics)$/.exec(url.pathname);
     if (request.method !== "POST" || !match) return send(404, { error: "Not found" });
     const sessionKey = decodeURIComponent(match[1]);
