@@ -12,6 +12,7 @@ import { accessibleCompanyIds, requirePermission, siteAccessWhere } from "@/lib/
 import { db } from "@/lib/db";
 import { payableShare, signedSettlementShare as signedShare } from "@/lib/domain/finance";
 import { balanceTone, dayStamp, stamp, whole } from "@/lib/format";
+import { formatAgentSplits } from "@/lib/services/identifier-agent-assignment";
 
 export const metadata: Metadata = { title: "Site" };
 
@@ -37,7 +38,7 @@ export default async function SitePage({ params, searchParams }: { params: Promi
   if (!site) notFound();
   const identifiers = await db.agentIdentifier.findMany({
     where: { siteId, deletedAt: null, ...(companyIds === null ? {} : { OR: [{ companyId: { in: companyIds } }, { companyId: null }] }) },
-    include: { company: { select: { name: true } }, agent: { select: { name: true } } },
+    include: { company: { select: { name: true } }, agent: { select: { name: true } }, agentAssignments: { where: { effectiveTo: null }, include: { agent: { select: { name: true } } }, orderBy: [{ splitPercentage: "desc" }, { effectiveFrom: "asc" }] } },
     orderBy: { value: "asc" },
   });
   const identifierIds = identifiers.map((identifier) => identifier.id);
@@ -78,7 +79,7 @@ export default async function SitePage({ params, searchParams }: { params: Promi
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-xs">
               <thead className="bg-[#ffeebb] text-[#152235]"><tr><th className="px-3 py-2">ID</th><th className="px-3 py-2">Company</th><th className="px-3 py-2">Agent</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Balance</th></tr></thead>
-              <tbody>{identifiers.map((identifier) => <tr key={identifier.id} className="border-t"><td className="whitespace-nowrap px-3 py-2 font-mono font-semibold"><Link prefetch={false} href={`/identifiers/${identifier.id}`} className="text-[#8a6012] hover:underline">{identifier.value}</Link></td><td className="px-3 py-2">{identifier.company?.name ?? "-"}</td><td className="px-3 py-2">{identifier.agent?.name ?? "-"}</td><td className="px-3 py-2">{identifier.type === "SUB_AGENT" ? "Sub Agent" : "Agent"}</td><td className="px-3 py-2"><StatusBadge tone={identifier.status === "ACTIVE" ? "success" : "neutral"}>{identifier.status}</StatusBadge></td><td className={`px-3 py-2 text-right font-mono font-semibold ${balanceTone(identifier.currentBalance)}`}>{whole(identifier.currentBalance)}</td></tr>)}</tbody>
+              <tbody>{identifiers.map((identifier) => <tr key={identifier.id} className="border-t"><td className="whitespace-nowrap px-3 py-2 font-mono font-semibold"><Link prefetch={false} href={`/identifiers/${identifier.id}`} className="text-[#8a6012] hover:underline">{identifier.value}</Link></td><td className="px-3 py-2">{identifier.company?.name ?? "-"}</td><td className="px-3 py-2">{formatAgentSplits(identifier.agentAssignments.map((row) => ({ name: row.agent.name, splitPercentage: Number(row.splitPercentage) })))}</td><td className="px-3 py-2">{identifier.type === "SUB_AGENT" ? "Sub Agent" : "Agent"}</td><td className="px-3 py-2"><StatusBadge tone={identifier.status === "ACTIVE" ? "success" : "neutral"}>{identifier.status}</StatusBadge></td><td className={`px-3 py-2 text-right font-mono font-semibold ${balanceTone(identifier.currentBalance)}`}>{whole(identifier.currentBalance)}</td></tr>)}</tbody>
             </table>
           </div>
           {!identifiers.length ? <p className="px-3 py-8 text-center text-xs text-[#647386]">No IDs yet.</p> : null}

@@ -6,6 +6,7 @@ import { financialTransaction } from "@/lib/services/financial-transaction";
 import { calculateSettlement, decimal, effectiveAgentPercentage, payableShare, splitCreditDebit } from "@/lib/domain/finance";
 import { recalculateAgentBalances, recalculateNonAgentBalances } from "@/lib/services/ledger";
 import { identifierShareAt } from "@/lib/services/identifier-share-history";
+import { agentsAt, primaryAgentId, splitWholeAmount } from "@/lib/services/identifier-agent-assignment";
 
 export interface PostSettlementInput {
   companyId: string;
@@ -41,10 +42,15 @@ export async function postSettlement(input: PostSettlementInput) {
       await tx.$queryRaw`SELECT "id" FROM "agent_ids" WHERE "id" = ${input.identifierId}::uuid FOR UPDATE`;
       const identifier = await tx.agentIdentifier.findFirst({ where: { id: input.identifierId, companyId: input.companyId, deletedAt: null, status: "ACTIVE" }, include: { site: { select: { uplinePercentage: true } } } });
       if (!identifier) throw new Error("The selected ID is unavailable.");
-      if (!identifier.agentId) throw new Error("Link an agent to this ID before posting a settlement.");
-      await tx.$queryRaw`SELECT "agent_id" FROM "company_agents" WHERE "company_id" = ${input.companyId}::uuid AND "agent_id" = ${identifier.agentId}::uuid FOR UPDATE`;
-      const assignment = await tx.companyAgent.findUnique({ where: { companyId_agentId: { companyId: input.companyId, agentId: identifier.agentId } } });
-      if (!assignment || assignment.removedAt) throw new Error("The ID agent is not assigned to this company.");
+      const splits = agentsAt(await tx.identifierAgentAssignment.findMany({ where: { identifierId: identifier.id } }), new Date());
+      if (!splits.length) throw new Error("Link an agent to this ID before posting a settlement.");
+      const primaryId = primaryAgentId(splits)!;
+      for (const row of splits) {
+        await tx.$queryRaw`SELECT "agent_id" FROM "company_agents" WHERE "company_id" = ${input.companyId}::uuid AND "agent_id" = ${row.agentId}::uuid FOR UPDATE`;
+      }
+      const memberships = await tx.companyAgent.findMany({ where: { companyId: input.companyId, agentId: { in: splits.map((row) => row.agentId) } } });
+      if (memberships.length !== splits.length || memberships.some((row) => row.removedAt)) throw new Error("Every assigned agent must belong to this company.");
+      const membershipByAgent = new Map(memberships.map((row) => [row.agentId, row]));
 
       const upline = input.uplineId ? await tx.upline.findFirst({ where: { id: input.uplineId, companyId: input.companyId, status: "ACTIVE", deletedAt: null } }) : null;
       if (input.uplineId && !upline) throw new Error("The selected upline is unavailable.");
@@ -66,21 +72,20 @@ export async function postSettlement(input: PostSettlementInput) {
       const agentCoins = identifier.type === "SUB_AGENT" ? amount : amount.neg();
       const agentRate = appliedAgentPercentage.div(100);
       const agentCash = agentCoins.mul(agentRate).toDecimalPlaces(8);
-      const agentOpening = decimal(assignment.currentBalance.toString());
-      const agentClosing = agentOpening.add(agentCash);
+      const cashByAgent = new Map(splits.length === 1 ? [[splits[0].agentId, agentCash] as const] : splitWholeAmount(Number(agentCash.toString()), splits).map((part) => [part.agentId, decimal(part.amount)] as const));
+      const coinsByAgent = new Map(splits.length === 1 ? [[splits[0].agentId, agentCoins] as const] : splitWholeAmount(Number(agentCoins.toString()), splits).map((part) => [part.agentId, decimal(part.amount)] as const));
       const companyAggregation = await tx.ledgerEntryLine.aggregate({ where: { companyId: input.companyId, accountType: "COMPANY", entry: { deletedAt: null } }, _sum: { cashValue: true } });
       const companyOpening = decimal(companyAggregation._sum.cashValue?.toString() ?? 0);
       const companyClosing = companyOpening.add(signedCompanyProfit);
       const uplineOpening = decimal(upline?.currentBalance.toString() ?? 0);
       const uplineClosing = uplineOpening.add(signedUplineShare);
-      const agentAmounts = splitCreditDebit(agentCash);
       const uplineAmounts = splitCreditDebit(signedUplineShare);
       const companyAmounts = splitCreditDebit(signedCompanyProfit);
 
       const settlement = await tx.settlement.create({
         data: {
           companyId: input.companyId,
-          agentId: identifier.agentId,
+          agentId: primaryId,
           identifierId: identifier.id,
           settlementDate: input.settlementDate,
           amount: pd(amount),
@@ -95,10 +100,15 @@ export async function postSettlement(input: PostSettlementInput) {
           createdById: input.actorId,
         },
       });
-      const lines: Prisma.LedgerEntryLineCreateWithoutEntryInput[] = [
-        { company: { connect: { id: input.companyId } }, accountType: "AGENT", agent: { connect: { id: identifier.agentId } }, coins: pd(agentCoins), rate: pd(agentRate), cashValue: pd(agentCash), credit: pd(agentAmounts.credit), debit: pd(agentAmounts.debit), openingBalance: pd(agentOpening), closingBalance: pd(agentClosing), sequence: 1 },
-      ];
-      if (upline) lines.push({ company: { connect: { id: input.companyId } }, accountType: "UPLINE", upline: { connect: { id: upline.id } }, coins: pd(signedUplineShare), rate: 1, cashValue: pd(signedUplineShare), credit: pd(uplineAmounts.credit), debit: pd(uplineAmounts.debit), openingBalance: pd(uplineOpening), closingBalance: pd(uplineClosing), sequence: 2 });
+      const lines: Prisma.LedgerEntryLineCreateWithoutEntryInput[] = splits.map((row, index) => {
+        const cash = cashByAgent.get(row.agentId)!;
+        const coins = coinsByAgent.get(row.agentId)!;
+        const opening = decimal(membershipByAgent.get(row.agentId)!.currentBalance.toString());
+        const closing = opening.add(cash);
+        const amounts = splitCreditDebit(cash);
+        return { company: { connect: { id: input.companyId } }, accountType: "AGENT" as const, agent: { connect: { id: row.agentId } }, coins: pd(coins), rate: pd(agentRate), cashValue: pd(cash), credit: pd(amounts.credit), debit: pd(amounts.debit), openingBalance: pd(opening), closingBalance: pd(closing), sequence: index + 1 };
+      });
+      if (upline) lines.push({ company: { connect: { id: input.companyId } }, accountType: "UPLINE", upline: { connect: { id: upline.id } }, coins: pd(signedUplineShare), rate: 1, cashValue: pd(signedUplineShare), credit: pd(uplineAmounts.credit), debit: pd(uplineAmounts.debit), openingBalance: pd(uplineOpening), closingBalance: pd(uplineClosing), sequence: lines.length + 1 });
       lines.push({ company: { connect: { id: input.companyId } }, accountType: "COMPANY", coins: pd(signedCompanyProfit), rate: 1, cashValue: pd(signedCompanyProfit), credit: pd(companyAmounts.credit), debit: pd(companyAmounts.debit), openingBalance: pd(companyOpening), closingBalance: pd(companyClosing), sequence: lines.length + 1 });
       await tx.ledgerEntry.create({
         data: {
@@ -121,10 +131,14 @@ export async function postSettlement(input: PostSettlementInput) {
       }
       await Promise.all([
         tx.agentIdentifier.update({ where: { id: identifier.id }, data: { currentBalance: { increment: pd(amount) } } }),
-        tx.companyAgent.update({ where: { companyId_agentId: { companyId: input.companyId, agentId: identifier.agentId } }, data: { currentBalance: pd(agentClosing) } }),
-        tx.auditLog.create({ data: { actorId: input.actorId, companyId: input.companyId, action: "settlement.create", entityType: "Settlement", entityId: settlement.id, requestId: input.requestId, newValues: { identifierId: identifier.id, uplineId: upline?.id, amount: amount.toString(), agentPercentage: appliedAgentPercentage.toString(), configuredPercentage: identifier.percentageRate.toString(), identifierType: identifier.type, agentShare: calculation.agentShare.toString(), uplineShare: calculation.uplineShare.toString(), companyShare: calculation.companyShare.toString(), companyProfit: calculation.companyProfit.toString() } } }),
+        ...splits.map((row) => {
+          const cash = cashByAgent.get(row.agentId)!;
+          const opening = decimal(membershipByAgent.get(row.agentId)!.currentBalance.toString());
+          return tx.companyAgent.update({ where: { companyId_agentId: { companyId: input.companyId, agentId: row.agentId } }, data: { currentBalance: pd(opening.add(cash)) } });
+        }),
+        tx.auditLog.create({ data: { actorId: input.actorId, companyId: input.companyId, action: "settlement.create", entityType: "Settlement", entityId: settlement.id, requestId: input.requestId, newValues: { identifierId: identifier.id, uplineId: upline?.id, amount: amount.toString(), agentPercentage: appliedAgentPercentage.toString(), configuredPercentage: identifier.percentageRate.toString(), identifierType: identifier.type, agentShare: calculation.agentShare.toString(), uplineShare: calculation.uplineShare.toString(), companyShare: calculation.companyShare.toString(), companyProfit: calculation.companyProfit.toString(), agents: splits } } }),
       ]);
-      await recalculateAgentBalances(tx, input.companyId, identifier.agentId);
+      for (const row of splits) await recalculateAgentBalances(tx, input.companyId, row.agentId);
       await recalculateNonAgentBalances(tx, input.companyId);
       return settlement;
     },
@@ -138,9 +152,12 @@ export async function reverseSettlement(settlementId: string, actorId: string, r
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${settlement.companyId}))`;
     await tx.$queryRaw`SELECT "id" FROM "settlements" WHERE "id" = ${settlement.id}::uuid FOR UPDATE`;
     await tx.$queryRaw`SELECT "id" FROM "agent_ids" WHERE "id" = ${settlement.identifierId}::uuid FOR UPDATE`;
-    await tx.$queryRaw`SELECT "agent_id" FROM "company_agents" WHERE "company_id" = ${settlement.companyId}::uuid AND "agent_id" = ${settlement.agentId}::uuid FOR UPDATE`;
-    const settlementEntry = await tx.ledgerEntry.findFirst({ where: { sourceEntity: "Settlement", sourceId: settlement.id, deletedAt: null } });
+    const settlementEntry = await tx.ledgerEntry.findFirst({ where: { sourceEntity: "Settlement", sourceId: settlement.id, deletedAt: null }, include: { lines: true } });
     if (!settlementEntry) throw new Error("The settlement ledger entry is missing.");
+    const agentIds = [...new Set([settlement.agentId, ...settlementEntry.lines.filter((line) => line.accountType === "AGENT" && line.agentId).map((line) => line.agentId!)])];
+    for (const agentId of agentIds) {
+      await tx.$queryRaw`SELECT "agent_id" FROM "company_agents" WHERE "company_id" = ${settlement.companyId}::uuid AND "agent_id" = ${agentId}::uuid FOR UPDATE`;
+    }
     const distributions = await tx.shareholderEntry.findMany({ where: { companyId: settlement.companyId, source: "SETTLEMENT_PROFIT", deletedAt: null, periodStart: { lte: settlement.settlementDate }, periodEnd: { gte: settlement.settlementDate } } });
     const distributionPeriods = new Map(distributions.filter((entry) => entry.periodStart && entry.periodEnd).map((entry) => [`${entry.periodStart!.toISOString()}:${entry.periodEnd!.toISOString()}`, { start: entry.periodStart!, end: entry.periodEnd! }]));
     for (const entry of distributions) await tx.shareholder.update({ where: { id: entry.shareholderId }, data: { currentBalance: { decrement: entry.amount } } });
@@ -153,7 +170,7 @@ export async function reverseSettlement(settlementId: string, actorId: string, r
       tx.agentIdentifier.update({ where: { id: settlement.identifierId }, data: { currentBalance: { decrement: settlement.amount } } }),
       tx.settlement.update({ where: { id: settlement.id }, data: { status: "REVERSED", reversedAt: new Date() } }),
     ]);
-    await recalculateAgentBalances(tx, settlement.companyId, settlement.agentId);
+    for (const agentId of agentIds) await recalculateAgentBalances(tx, settlement.companyId, agentId);
     await recalculateNonAgentBalances(tx, settlement.companyId);
     await tx.auditLog.create({ data: { actorId, companyId: settlement.companyId, action: "settlement.reverse", entityType: "Settlement", entityId: settlement.id, requestId, oldValues: { status: settlement.status }, newValues: { status: "REVERSED", reason, reversedShareholderDistributions: distributions.length } } });
     return { duplicate: false };

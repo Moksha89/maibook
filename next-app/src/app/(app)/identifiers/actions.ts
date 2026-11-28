@@ -10,7 +10,7 @@ import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions"
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { normalizeName } from "@/lib/domain/normalization";
-import { recordIdentifierAgentAssignment } from "@/lib/services/identifier-agent-assignment";
+import { parseAgentSplits, primaryAgentId, recordIdentifierAgentSet } from "@/lib/services/identifier-agent-assignment";
 import { recordIdentifierShare } from "@/lib/services/identifier-share-history";
 import { identifierSchema } from "@/lib/validation/identifier";
 
@@ -23,20 +23,26 @@ export async function createIdentifierAction(_: ActionState, formData: FormData)
   const parsed = identifierSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message, fieldErrors: parsed.error.flatten().fieldErrors };
   const companyId = parsed.data.companyId ?? null;
-  if (parsed.data.agentId && !String(formData.get("percentageRate") ?? "").trim()) return { status: "error", message: "Agent percentage is required when an agent is selected." };
+  const splitsParsed = parseAgentSplits(formData);
+  if (!splitsParsed.ok) return { status: "error", message: splitsParsed.message };
+  const splits = splitsParsed.splits;
+  const primaryId = primaryAgentId(splits);
+  if (splits.length && !String(formData.get("percentageRate") ?? "").trim()) return { status: "error", message: "Agent percentage is required when an agent is selected." };
   if (companyId) await requireCompanyAccess(companyId, "FULL");
   const session = await requireSession();
-  if (parsed.data.agentId && !companyId) return { status: "error", message: "Select a company for this agent." };
-  const assigned = parsed.data.agentId && companyId ? await db.companyAgent.findUnique({ where: { companyId_agentId: { companyId, agentId: parsed.data.agentId } } }) : null;
-  if (parsed.data.agentId && (!assigned || assigned.removedAt)) return { status: "error", message: "The selected agent is not linked to this company." };
+  if (splits.length && !companyId) return { status: "error", message: "Select a company for this agent." };
+  if (splits.length && companyId) {
+    const assigned = await db.companyAgent.findMany({ where: { companyId, agentId: { in: splits.map((row) => row.agentId) } } });
+    if (assigned.length !== splits.length || assigned.some((row) => row.removedAt)) return { status: "error", message: "Every selected agent must belong to this company." };
+  }
   const normalizedValue = normalizeName(parsed.data.value);
   if (await db.agentIdentifier.findFirst({ where: { siteId: site.id, normalizedValue, deletedAt: null }, select: { id: true } })) return { status: "error", message: "This ID already exists on this site." };
   try {
     const identifier = await db.$transaction(async (tx) => {
-      const created = await tx.agentIdentifier.create({ data: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate, companyId, agentId: parsed.data.agentId ?? null, siteId: site.id, normalizedValue } });
+      const created = await tx.agentIdentifier.create({ data: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate, companyId, agentId: primaryId, siteId: site.id, normalizedValue } });
       await recordIdentifierShare(tx, created.id, created.percentageRate, created.createdAt);
-      if (created.agentId) await recordIdentifierAgentAssignment(tx, created.id, created.agentId, created.createdAt);
-      await tx.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.create", entityType: "AgentIdentifier", entityId: created.id, requestId: randomUUID(), newValues: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate } } });
+      if (splits.length) await recordIdentifierAgentSet(tx, created.id, splits, created.createdAt);
+      await tx.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.create", entityType: "AgentIdentifier", entityId: created.id, requestId: randomUUID(), newValues: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate, agents: splits } } });
       return created;
     });
     revalidatePath("/", "layout");
@@ -56,23 +62,25 @@ export async function updateIdentifierAction(_: ActionState, formData: FormData)
   const existing = await db.agentIdentifier.findFirst({ where: { id: parsed.data.identifierId, deletedAt: null } });
   if (!existing) return { status: "error", message: "This ID no longer exists." };
   const companyId = parsed.data.companyId ?? null;
-  const agentId = parsed.data.agentId ?? null;
+  const splitsParsed = parseAgentSplits(formData);
+  if (!splitsParsed.ok) return { status: "error", message: splitsParsed.message };
+  const splits = splitsParsed.splits;
+  const agentId = primaryAgentId(splits);
   if (existing.companyId) await requireCompanyAccess(existing.companyId, "FULL");
   if (companyId) await requireCompanyAccess(companyId, "FULL");
   const session = await requireSession();
-  if (agentId && !companyId) return { status: "error", message: "Select a company for this agent." };
-  if (agentId && !String(formData.get("percentageRate") ?? "").trim()) return { status: "error", message: "Agent percentage is required when an agent is linked." };
-  if (agentId && companyId) {
-    const assigned = await db.companyAgent.findUnique({ where: { companyId_agentId: { companyId, agentId } } });
-    if (!assigned || assigned.removedAt) return { status: "error", message: "The selected agent is not linked to this company." };
+  if (splits.length && !companyId) return { status: "error", message: "Select a company for this agent." };
+  if (splits.length && !String(formData.get("percentageRate") ?? "").trim()) return { status: "error", message: "Agent percentage is required when an agent is linked." };
+  if (splits.length && companyId) {
+    const assigned = await db.companyAgent.findMany({ where: { companyId, agentId: { in: splits.map((row) => row.agentId) } } });
+    if (assigned.length !== splits.length || assigned.some((row) => row.removedAt)) return { status: "error", message: "Every selected agent must belong to this company." };
   }
-  const agentChanged = (existing.agentId ?? null) !== agentId;
   try {
     await db.$transaction(async (tx) => {
       await tx.agentIdentifier.update({ where: { id: existing.id }, data: { companyId, agentId, value: parsed.data.value, normalizedValue: normalizeName(parsed.data.value), type: parsed.data.type, percentageRate: parsed.data.percentageRate } });
       if (!existing.percentageRate.eq(parsed.data.percentageRate)) await recordIdentifierShare(tx, existing.id, parsed.data.percentageRate);
-      if (agentChanged) await recordIdentifierAgentAssignment(tx, existing.id, agentId);
-      await tx.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.update", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { companyId: existing.companyId, agentId: existing.agentId, value: existing.value, type: existing.type, percentageRate: existing.percentageRate.toString() }, newValues: { companyId, agentId, value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate } } });
+      await recordIdentifierAgentSet(tx, existing.id, splits);
+      await tx.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.update", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { companyId: existing.companyId, agentId: existing.agentId, value: existing.value, type: existing.type, percentageRate: existing.percentageRate.toString() }, newValues: { companyId, agentId, value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate, agents: splits } } });
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "This ID already exists on this site." };
@@ -117,23 +125,31 @@ export async function deleteIdentifierAction(_: ActionState, formData: FormData)
 export async function assignIdentifierAgentAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("identifiers.update");
   const identifierId = String(formData.get("identifierId") || "");
-  const agentId = String(formData.get("agentId") || "");
-  if (!identifierId || !agentId) return { status: "error", message: "Select an agent." };
+  const splitsParsed = parseAgentSplits(formData);
+  if (!identifierId) return { status: "error", message: "Select an agent." };
+  if (!splitsParsed.ok) return { status: "error", message: splitsParsed.message };
+  const splits = splitsParsed.splits;
+  if (!splits.length) {
+    const legacyAgentId = String(formData.get("agentId") || "");
+    if (!legacyAgentId) return { status: "error", message: "Select an agent." };
+    splits.push({ agentId: legacyAgentId, splitPercentage: 100 });
+  }
+  const agentId = primaryAgentId(splits);
   const existing = await db.agentIdentifier.findFirst({ where: { id: identifierId, deletedAt: null } });
   if (!existing) return { status: "error", message: "This ID no longer exists." };
   if (!existing.companyId) return { status: "error", message: "Link a company to this ID first." };
   await requireCompanyAccess(existing.companyId, "FULL");
-  const assigned = await db.companyAgent.findUnique({ where: { companyId_agentId: { companyId: existing.companyId, agentId } } });
-  if (!assigned || assigned.removedAt) return { status: "error", message: "The selected agent is not linked to this company." };
-  if (existing.agentId === agentId) return { status: "success", message: "This agent is already assigned." };
+  const assigned = await db.companyAgent.findMany({ where: { companyId: existing.companyId, agentId: { in: splits.map((row) => row.agentId) } } });
+  if (assigned.length !== splits.length || assigned.some((row) => row.removedAt)) return { status: "error", message: "Every selected agent must belong to this company." };
   const session = await requireSession();
   await db.$transaction(async (tx) => {
+    const result = await recordIdentifierAgentSet(tx, existing.id, splits);
+    if (!result.changed) return;
     await tx.agentIdentifier.update({ where: { id: existing.id }, data: { agentId } });
-    await recordIdentifierAgentAssignment(tx, existing.id, agentId);
-    await tx.auditLog.create({ data: { actorId: session.userId, companyId: existing.companyId, action: "identifier.assign-agent", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { agentId: existing.agentId }, newValues: { agentId } } });
+    await tx.auditLog.create({ data: { actorId: session.userId, companyId: existing.companyId, action: "identifier.assign-agent", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { agentId: existing.agentId }, newValues: { agentId, agents: splits } } });
   });
   revalidatePath("/", "layout");
-  return { status: "success", message: "Agent assigned." };
+  return { status: "success", message: "Agents assigned." };
 }
 
 export async function unassignIdentifierAgentAction(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -142,11 +158,12 @@ export async function unassignIdentifierAgentAction(_: ActionState, formData: Fo
   const existing = await db.agentIdentifier.findFirst({ where: { id: identifierId, deletedAt: null } });
   if (!existing) return { status: "error", message: "This ID no longer exists." };
   if (existing.companyId) await requireCompanyAccess(existing.companyId, "FULL");
-  if (!existing.agentId) return { status: "success", message: "This ID has no agent assigned." };
+  const openAssignments = await db.identifierAgentAssignment.count({ where: { identifierId: existing.id, effectiveTo: null } });
+  if (!existing.agentId && !openAssignments) return { status: "success", message: "This ID has no agent assigned." };
   const session = await requireSession();
   await db.$transaction(async (tx) => {
     await tx.agentIdentifier.update({ where: { id: existing.id }, data: { agentId: null } });
-    await recordIdentifierAgentAssignment(tx, existing.id, null);
+    await recordIdentifierAgentSet(tx, existing.id, []);
     await tx.auditLog.create({ data: { actorId: session.userId, companyId: existing.companyId, action: "identifier.unassign-agent", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { agentId: existing.agentId }, newValues: { agentId: null } } });
   });
   revalidatePath("/", "layout");

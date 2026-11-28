@@ -1022,14 +1022,15 @@ model IdentifierShareHistory {
 
 /// Agent assigned to an ID over a period. Posted settlements and ledger lines keep the agent snapshotted when they were posted.
 model IdentifierAgentAssignment {
-  id            String          @id @default(uuid()) @db.Uuid
-  identifierId  String          @map("identifier_id") @db.Uuid
-  agentId       String          @map("agent_id") @db.Uuid
-  effectiveFrom DateTime        @default(now()) @map("effective_from") @db.Timestamptz(6)
-  effectiveTo   DateTime?       @map("effective_to") @db.Timestamptz(6)
-  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  identifier    AgentIdentifier @relation(fields: [identifierId], references: [id], onDelete: Cascade)
-  agent         Agent           @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  id              String          @id @default(uuid()) @db.Uuid
+  identifierId    String          @map("identifier_id") @db.Uuid
+  agentId         String          @map("agent_id") @db.Uuid
+  splitPercentage Decimal         @default(100) @map("split_percentage") @db.Decimal(7, 4)
+  effectiveFrom   DateTime        @default(now()) @map("effective_from") @db.Timestamptz(6)
+  effectiveTo     DateTime?       @map("effective_to") @db.Timestamptz(6)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  identifier      AgentIdentifier @relation(fields: [identifierId], references: [id], onDelete: Cascade)
+  agent           Agent           @relation(fields: [agentId], references: [id], onDelete: Restrict)
 
   @@index([identifierId, effectiveFrom])
   @@map("identifier_agent_assignments")
