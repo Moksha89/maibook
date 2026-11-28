@@ -10,8 +10,9 @@ import { Input, Select } from "@/components/ui/input";
 import { FormFooter } from "@/components/ui/form-footer";
 import type { ActionState } from "@/lib/actions/types";
 import { assignAgentAction, removeAgentAssignmentAction, updateAgentAction } from "./actions";
+import { SegmentedToggle } from "@/components/ui/toggle";
 
-export interface EditableAgent { id: string; name: string; phone: string | null; email: string | null; assignments: { companyId: string; companyName: string; balance: string }[] }
+export interface EditableAgent { id: string; name: string; type?: "AGENT" | "SUB_AGENT"; phone: string | null; email: string | null; assignments: { companyId: string; companyName: string; balance: string }[] }
 
 export function EditAgentForm({ agent, assignableCompanies, canAssign }: { agent: EditableAgent; assignableCompanies: { id: string; name: string }[]; canAssign: boolean }) {
   const [state, action, pending] = useModalAction(updateAgentAction, {} as ActionState);
@@ -20,8 +21,9 @@ export function EditAgentForm({ agent, assignableCompanies, canAssign }: { agent
     <div className="space-y-3">
       <form action={action} className="rounded-lg border bg-white p-3">
         <input type="hidden" name="agentId" value={agent.id} />
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <label className="text-xs font-bold text-[#0d1a2c]">Name<Input uppercase name="name" className="mt-1" defaultValue={agent.name} required /></label>
+          <label className="text-xs font-bold text-[#0d1a2c]">Type<div className="mt-1"><SegmentedToggle name="type" label="Agent type" size="xs" className="w-fit" defaultValue={agent.type ?? "AGENT"} submitOnChange={false} options={[{ value: "AGENT", label: "Agent" }, { value: "SUB_AGENT", label: "Sub-agent" }]} /></div></label>
           <label className="text-xs font-bold text-[#0d1a2c]">Phone<Input name="phone" className="mt-1" inputMode="tel" defaultValue={agent.phone ?? ""} /></label>
           <label className="text-xs font-bold text-[#0d1a2c]">Email<Input name="email" className="mt-1" type="email" defaultValue={agent.email ?? ""} /></label>
         </div>

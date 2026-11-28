@@ -14,6 +14,16 @@ import { parseAgentSplits, primaryAgentId, recordIdentifierAgentSet } from "@/li
 import { recordIdentifierShare } from "@/lib/services/identifier-share-history";
 import { identifierSchema } from "@/lib/validation/identifier";
 
+async function requireAgentsMatchType(agentIds: string[], type: "AGENT" | "SUB_AGENT") {
+  if (!agentIds.length) return null;
+  const people = await db.agent.findMany({ where: { id: { in: agentIds }, deletedAt: null }, select: { id: true, type: true } });
+  if (people.length !== agentIds.length || people.some((person) => person.type !== type)) {
+    return { status: "error" as const, message: type === "SUB_AGENT" ? "Every selected person must be a sub-agent of this company." : "Every selected person must be an agent of this company." };
+  }
+  return null;
+}
+
+
 export async function createIdentifierAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("identifiers.create");
   const siteId = String(formData.get("siteId") || "");
@@ -34,6 +44,8 @@ export async function createIdentifierAction(_: ActionState, formData: FormData)
   if (splits.length && companyId) {
     const assigned = await db.companyAgent.findMany({ where: { companyId, agentId: { in: splits.map((row) => row.agentId) } } });
     if (assigned.length !== splits.length || assigned.some((row) => row.removedAt)) return { status: "error", message: "Every selected agent must belong to this company." };
+    const typeMismatch = await requireAgentsMatchType(splits.map((row) => row.agentId), parsed.data.type);
+    if (typeMismatch) return typeMismatch;
   }
   const normalizedValue = normalizeName(parsed.data.value);
   if (await db.agentIdentifier.findFirst({ where: { siteId: site.id, normalizedValue, deletedAt: null }, select: { id: true } })) return { status: "error", message: "This ID already exists on this site." };
@@ -74,6 +86,8 @@ export async function updateIdentifierAction(_: ActionState, formData: FormData)
   if (splits.length && companyId) {
     const assigned = await db.companyAgent.findMany({ where: { companyId, agentId: { in: splits.map((row) => row.agentId) } } });
     if (assigned.length !== splits.length || assigned.some((row) => row.removedAt)) return { status: "error", message: "Every selected agent must belong to this company." };
+    const typeMismatch = await requireAgentsMatchType(splits.map((row) => row.agentId), parsed.data.type);
+    if (typeMismatch) return typeMismatch;
   }
   try {
     await db.$transaction(async (tx) => {
@@ -141,12 +155,15 @@ export async function assignIdentifierAgentAction(_: ActionState, formData: Form
   await requireCompanyAccess(existing.companyId, "FULL");
   const assigned = await db.companyAgent.findMany({ where: { companyId: existing.companyId, agentId: { in: splits.map((row) => row.agentId) } } });
   if (assigned.length !== splits.length || assigned.some((row) => row.removedAt)) return { status: "error", message: "Every selected agent must belong to this company." };
+  const type = String(formData.get("type") || existing.type) === "SUB_AGENT" ? "SUB_AGENT" : "AGENT";
+  const typeMismatch = await requireAgentsMatchType(splits.map((row) => row.agentId), type);
+  if (typeMismatch) return typeMismatch;
   const session = await requireSession();
   await db.$transaction(async (tx) => {
     const result = await recordIdentifierAgentSet(tx, existing.id, splits);
-    if (!result.changed) return;
-    await tx.agentIdentifier.update({ where: { id: existing.id }, data: { agentId } });
-    await tx.auditLog.create({ data: { actorId: session.userId, companyId: existing.companyId, action: "identifier.assign-agent", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { agentId: existing.agentId }, newValues: { agentId, agents: splits } } });
+    if (!result.changed && existing.type === type && existing.agentId === agentId) return;
+    await tx.agentIdentifier.update({ where: { id: existing.id }, data: { agentId, type } });
+    await tx.auditLog.create({ data: { actorId: session.userId, companyId: existing.companyId, action: "identifier.assign-agent", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { agentId: existing.agentId, type: existing.type }, newValues: { agentId, type, agents: splits } } });
   });
   revalidatePath("/", "layout");
   return { status: "success", message: "Agents assigned." };

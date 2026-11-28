@@ -52,12 +52,13 @@ export async function createAgentAction(_: ActionState, formData: FormData): Pro
       data: {
         name: parsed.data.name,
         normalizedName,
+        type: parsed.data.type,
         phone: parsed.data.phone ? normalizePhone(parsed.data.phone) : null,
         email: parsed.data.email ? normalizeEmail(parsed.data.email) : null,
         companies: { create: { companyId: parsed.data.companyId, openingBalance: parsed.data.openingBalance, currentBalance: parsed.data.openingBalance } },
       },
     });
-    await db.auditLog.create({ data: { actorId: session.userId, companyId: parsed.data.companyId, action: "agent.create", entityType: "Agent", entityId: agent.id, requestId: randomUUID(), newValues: { name: parsed.data.name, openingBalance: parsed.data.openingBalance } } });
+    await db.auditLog.create({ data: { actorId: session.userId, companyId: parsed.data.companyId, action: "agent.create", entityType: "Agent", entityId: agent.id, requestId: randomUUID(), newValues: { name: parsed.data.name, type: parsed.data.type, openingBalance: parsed.data.openingBalance } } });
     refresh(parsed.data.companyId);
     return { status: "success", message: `${parsed.data.name} was created and assigned.` };
   } catch (error) {
@@ -90,12 +91,12 @@ export async function updateAgentAction(_: ActionState, formData: FormData): Pro
   const existing = await db.agent.findFirst({ where: { id: parsed.data.agentId, deletedAt: null } });
   if (!existing) return { status: "error", message: "This agent no longer exists." };
   try {
-    await db.agent.update({ where: { id: existing.id }, data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), phone: parsed.data.phone ? normalizePhone(parsed.data.phone) : null, email: parsed.data.email ? normalizeEmail(parsed.data.email) : null } });
+    await db.agent.update({ where: { id: existing.id }, data: { name: parsed.data.name, normalizedName: normalizeName(parsed.data.name), type: parsed.data.type, phone: parsed.data.phone ? normalizePhone(parsed.data.phone) : null, email: parsed.data.email ? normalizeEmail(parsed.data.email) : null } });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "An agent with this name already exists." };
     throw error;
   }
-  await db.auditLog.create({ data: { actorId: session.userId, action: "agent.update", entityType: "Agent", entityId: existing.id, requestId: randomUUID(), oldValues: { name: existing.name, phone: existing.phone, email: existing.email }, newValues: { name: parsed.data.name, phone: parsed.data.phone || null, email: parsed.data.email || null } } });
+  await db.auditLog.create({ data: { actorId: session.userId, action: "agent.update", entityType: "Agent", entityId: existing.id, requestId: randomUUID(), oldValues: { name: existing.name, type: existing.type, phone: existing.phone, email: existing.email }, newValues: { name: parsed.data.name, type: parsed.data.type, phone: parsed.data.phone || null, email: parsed.data.email || null } } });
   refresh();
   return { status: "success", message: "Agent updated." };
 }

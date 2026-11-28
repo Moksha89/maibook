@@ -7,6 +7,6 @@ export async function siteOptionsFor(companies: { id: string }[]) {
   return sites.filter((site) => !site.uplineGroup?.companyId || ids.has(site.uplineGroup.companyId)).map((site) => ({ id: site.id, name: site.name }));
 }
 
-export function companyOptionsFor(companies: { id: string; name: string; agents: { agent: { id: string; name: string } }[] }[]) {
+export function companyOptionsFor(companies: { id: string; name: string; agents: { agent: { id: string; name: string; type?: "AGENT" | "SUB_AGENT" } }[] }[]) {
   return companies.map((company) => ({ id: company.id, name: company.name, agents: company.agents.map(({ agent }) => agent) }));
 }

@@ -53,6 +53,11 @@ enum IdentifierType {
   SUB_AGENT
 }
 
+enum AgentType {
+  AGENT
+  SUB_AGENT
+}
+
 enum LedgerAccountType {
   COMPANY
   AGENT
@@ -391,6 +396,7 @@ model Agent {
   legacyId         String?                @unique @map("legacy_id")
   name             String
   normalizedName   String                 @unique @map("normalized_name")
+  type             AgentType              @default(AGENT)
   phone            String?
   email            String?
   status           RecordStatus           @default(ACTIVE)

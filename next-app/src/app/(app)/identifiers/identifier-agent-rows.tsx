@@ -12,6 +12,15 @@ export function emptyAgentRow(): AgentSplitRow {
   return { agentId: "", split: "100" };
 }
 
+export const identifierTypeOptions = [{ value: "AGENT", label: "Agent" }, { value: "SUB_AGENT", label: "Sub-agent" }] as const;
+
+export function rowsMatchingAgents(rows: AgentSplitRow[], agents: { id: string }[]): AgentSplitRow[] {
+  const allowed = new Set(agents.map((agent) => agent.id));
+  const kept = rows.filter((row) => !row.agentId || allowed.has(row.agentId));
+  return kept.length ? kept : [emptyAgentRow()];
+}
+
+
 export function splitTotal(rows: AgentSplitRow[]) {
   const filled = rows.filter((row) => row.agentId);
   if (!filled.length) return { hasAgents: false, complete: true, total: 0 };
@@ -34,8 +43,8 @@ export function IdentifierAgentRows({ agents, rows, onChange }: { agents: { id: 
             </Select>
           </label>
           {index === 0 ? <Button type="button" iconOnly size="xs" icon={Plus} aria-label="Add agent" className="mb-0 !size-7 shrink-0" onClick={() => onChange([...rows, { agentId: "", split: "" }])} /> : <Button type="button" variant="secondary" iconOnly size="xs" icon={Minus} aria-label="Remove agent" className="mb-0 !size-7 shrink-0" onClick={() => onChange(rows.filter((_, itemIndex) => itemIndex !== index))} />}
-          <label className={`${modalLabel} w-[4.5rem] shrink-0`}>
-            {index === 0 ? "%" : <span className="sr-only">Split %</span>}
+          <label className={`${modalLabel} w-[4.75rem] shrink-0`}>
+            {index === 0 ? "Split %" : <span className="sr-only">Split %</span>}
             <Input name="agentSplits" icon={null} className={modalField} type="number" min="0" max="100" step="0.0001" value={row.split} onChange={(event) => onChange(rows.map((item, itemIndex) => itemIndex === index ? { ...item, split: event.target.value } : item))} />
           </label>
         </div>
