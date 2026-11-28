@@ -10,7 +10,7 @@ import { requireCompanyAccess, requirePermission } from "@/lib/auth/permissions"
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { normalizeName } from "@/lib/domain/normalization";
-import { parseAgentSplits, primaryAgentId, recordIdentifierAgentSet } from "@/lib/services/identifier-agent-assignment";
+import { agentRateTotal, parseAgentSplits, primaryAgentId, recordIdentifierAgentSet } from "@/lib/services/identifier-agent-assignment";
 import { recordIdentifierShare } from "@/lib/services/identifier-share-history";
 import { identifierSchema } from "@/lib/validation/identifier";
 
@@ -37,7 +37,7 @@ export async function createIdentifierAction(_: ActionState, formData: FormData)
   if (!splitsParsed.ok) return { status: "error", message: splitsParsed.message };
   const splits = splitsParsed.splits;
   const primaryId = primaryAgentId(splits);
-  if (splits.length && !String(formData.get("percentageRate") ?? "").trim()) return { status: "error", message: "Agent percentage is required when an agent is selected." };
+  const percentageRate = agentRateTotal(splits);
   if (companyId) await requireCompanyAccess(companyId, "FULL");
   const session = await requireSession();
   if (splits.length && !companyId) return { status: "error", message: "Select a company for this agent." };
@@ -51,10 +51,10 @@ export async function createIdentifierAction(_: ActionState, formData: FormData)
   if (await db.agentIdentifier.findFirst({ where: { siteId: site.id, normalizedValue, deletedAt: null }, select: { id: true } })) return { status: "error", message: "This ID already exists on this site." };
   try {
     const identifier = await db.$transaction(async (tx) => {
-      const created = await tx.agentIdentifier.create({ data: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate, companyId, agentId: primaryId, siteId: site.id, normalizedValue } });
+      const created = await tx.agentIdentifier.create({ data: { value: parsed.data.value, type: parsed.data.type, percentageRate: percentageRate, companyId, agentId: primaryId, siteId: site.id, normalizedValue } });
       await recordIdentifierShare(tx, created.id, created.percentageRate, created.createdAt);
       if (splits.length) await recordIdentifierAgentSet(tx, created.id, splits, created.createdAt);
-      await tx.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.create", entityType: "AgentIdentifier", entityId: created.id, requestId: randomUUID(), newValues: { value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate, agents: splits } } });
+      await tx.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.create", entityType: "AgentIdentifier", entityId: created.id, requestId: randomUUID(), newValues: { value: parsed.data.value, type: parsed.data.type, percentageRate: percentageRate, agents: splits } } });
       return created;
     });
     revalidatePath("/", "layout");
@@ -82,7 +82,7 @@ export async function updateIdentifierAction(_: ActionState, formData: FormData)
   if (companyId) await requireCompanyAccess(companyId, "FULL");
   const session = await requireSession();
   if (splits.length && !companyId) return { status: "error", message: "Select a company for this agent." };
-  if (splits.length && !String(formData.get("percentageRate") ?? "").trim()) return { status: "error", message: "Agent percentage is required when an agent is linked." };
+  const percentageRate = agentRateTotal(splits);
   if (splits.length && companyId) {
     const assigned = await db.companyAgent.findMany({ where: { companyId, agentId: { in: splits.map((row) => row.agentId) } } });
     if (assigned.length !== splits.length || assigned.some((row) => row.removedAt)) return { status: "error", message: "Every selected agent must belong to this company." };
@@ -91,10 +91,10 @@ export async function updateIdentifierAction(_: ActionState, formData: FormData)
   }
   try {
     await db.$transaction(async (tx) => {
-      await tx.agentIdentifier.update({ where: { id: existing.id }, data: { companyId, agentId, value: parsed.data.value, normalizedValue: normalizeName(parsed.data.value), type: parsed.data.type, percentageRate: parsed.data.percentageRate } });
-      if (!existing.percentageRate.eq(parsed.data.percentageRate)) await recordIdentifierShare(tx, existing.id, parsed.data.percentageRate);
+      await tx.agentIdentifier.update({ where: { id: existing.id }, data: { companyId, agentId, value: parsed.data.value, normalizedValue: normalizeName(parsed.data.value), type: parsed.data.type, percentageRate: percentageRate } });
+      if (!existing.percentageRate.eq(percentageRate)) await recordIdentifierShare(tx, existing.id, percentageRate);
       await recordIdentifierAgentSet(tx, existing.id, splits);
-      await tx.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.update", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { companyId: existing.companyId, agentId: existing.agentId, value: existing.value, type: existing.type, percentageRate: existing.percentageRate.toString() }, newValues: { companyId, agentId, value: parsed.data.value, type: parsed.data.type, percentageRate: parsed.data.percentageRate, agents: splits } } });
+      await tx.auditLog.create({ data: { actorId: session.userId, companyId, action: "identifier.update", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { companyId: existing.companyId, agentId: existing.agentId, value: existing.value, type: existing.type, percentageRate: existing.percentageRate.toString() }, newValues: { companyId, agentId, value: parsed.data.value, type: parsed.data.type, percentageRate: percentageRate, agents: splits } } });
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "error", message: "This ID already exists on this site." };
@@ -158,12 +158,15 @@ export async function assignIdentifierAgentAction(_: ActionState, formData: Form
   const type = String(formData.get("type") || existing.type) === "SUB_AGENT" ? "SUB_AGENT" : "AGENT";
   const typeMismatch = await requireAgentsMatchType(splits.map((row) => row.agentId), type);
   if (typeMismatch) return typeMismatch;
+  const percentageRate = agentRateTotal(splits);
   const session = await requireSession();
   await db.$transaction(async (tx) => {
     const result = await recordIdentifierAgentSet(tx, existing.id, splits);
-    if (!result.changed && existing.type === type && existing.agentId === agentId) return;
-    await tx.agentIdentifier.update({ where: { id: existing.id }, data: { agentId, type } });
-    await tx.auditLog.create({ data: { actorId: session.userId, companyId: existing.companyId, action: "identifier.assign-agent", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { agentId: existing.agentId, type: existing.type }, newValues: { agentId, type, agents: splits } } });
+    const rateChanged = !existing.percentageRate.eq(percentageRate);
+    if (!result.changed && existing.type === type && existing.agentId === agentId && !rateChanged) return;
+    await tx.agentIdentifier.update({ where: { id: existing.id }, data: { agentId, type, percentageRate } });
+    if (rateChanged) await recordIdentifierShare(tx, existing.id, percentageRate);
+    await tx.auditLog.create({ data: { actorId: session.userId, companyId: existing.companyId, action: "identifier.assign-agent", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { agentId: existing.agentId, type: existing.type, percentageRate: existing.percentageRate.toString() }, newValues: { agentId, type, percentageRate, agents: splits } } });
   });
   revalidatePath("/", "layout");
   return { status: "success", message: "Agents assigned." };
@@ -179,9 +182,10 @@ export async function unassignIdentifierAgentAction(_: ActionState, formData: Fo
   if (!existing.agentId && !openAssignments) return { status: "success", message: "This ID has no agent assigned." };
   const session = await requireSession();
   await db.$transaction(async (tx) => {
-    await tx.agentIdentifier.update({ where: { id: existing.id }, data: { agentId: null } });
+    await tx.agentIdentifier.update({ where: { id: existing.id }, data: { agentId: null, percentageRate: 0 } });
     await recordIdentifierAgentSet(tx, existing.id, []);
-    await tx.auditLog.create({ data: { actorId: session.userId, companyId: existing.companyId, action: "identifier.unassign-agent", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { agentId: existing.agentId }, newValues: { agentId: null } } });
+    if (!existing.percentageRate.isZero()) await recordIdentifierShare(tx, existing.id, 0);
+    await tx.auditLog.create({ data: { actorId: session.userId, companyId: existing.companyId, action: "identifier.unassign-agent", entityType: "AgentIdentifier", entityId: existing.id, requestId: randomUUID(), oldValues: { agentId: existing.agentId, percentageRate: existing.percentageRate.toString() }, newValues: { agentId: null, percentageRate: 0 } } });
   });
   revalidatePath("/", "layout");
   return { status: "success", message: "Agent unassigned. Old settlements stay with the previous agent." };

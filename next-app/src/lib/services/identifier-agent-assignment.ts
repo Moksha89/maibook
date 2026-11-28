@@ -18,17 +18,21 @@ export function wholeMoney(value: number) {
   return Math.sign(value) * Math.round(Math.abs(value)) || 0;
 }
 
+export function agentRateTotal(rows: AgentSplit[]) {
+  return round4(rows.reduce((sum, row) => sum + row.splitPercentage, 0));
+}
+
 export function validateAgentSplits(rows: AgentSplit[]): { ok: true } | { ok: false; message: string } {
   if (rows.length === 0) return { ok: true };
   if (rows.some((row) => !row.agentId)) return { ok: false, message: "Select an agent for each row." };
   if (new Set(rows.map((row) => row.agentId)).size !== rows.length) return { ok: false, message: "Each agent can only appear once." };
   for (const row of rows) {
     if (!Number.isFinite(row.splitPercentage) || row.splitPercentage <= 0 || row.splitPercentage > 100) {
-      return { ok: false, message: "Each split must be greater than 0 and at most 100." };
+      return { ok: false, message: "Each percentage must be greater than 0 and at most 100." };
     }
   }
-  const total = round4(rows.reduce((sum, row) => sum + row.splitPercentage, 0));
-  if (total !== 100) return { ok: false, message: `Agent splits must total 100% (currently ${total}%).` };
+  const total = agentRateTotal(rows);
+  if (total > 100) return { ok: false, message: `Agent percentages cannot exceed 100% (currently ${total}%).` };
   return { ok: true };
 }
 
@@ -41,8 +45,7 @@ export function parseAgentSplits(formData: FormData): { ok: true; splits: AgentS
     const raw = (pcts[index] || "").trim();
     if (!agentId && !raw) continue;
     if (!agentId) return { ok: false, message: "Select an agent for each row." };
-    const splitPercentage = raw === "" && ids.filter(Boolean).length === 1 ? 100 : Number(raw);
-    rows.push({ agentId, splitPercentage });
+    rows.push({ agentId, splitPercentage: Number(raw) });
   }
   const checked = validateAgentSplits(rows);
   if (!checked.ok) return checked;
@@ -56,22 +59,24 @@ export function primaryAgentId(splits: AgentSplit[]): string | null {
 
 export function formatAgentSplits(rows: { name: string; splitPercentage: number }[]) {
   if (!rows.length) return "-";
-  if (rows.length === 1 && rows[0].splitPercentage === 100) return rows[0].name;
   return rows.map((row) => `${row.name} ${round4(row.splitPercentage)}%`).join(" · ");
 }
 
 /**
- * Divide `total` by split percentages. A single 100% agent keeps the exact amount (no extra rounding).
- * Multiple agents are rounded to whole money, and any remainder goes to the largest split (first row if tied).
+ * Divide an already-computed coin or cash total in proportion to each agent's percentage.
+ * A single agent keeps the exact amount (no extra rounding). Multiple agents are rounded to whole money,
+ * and any remainder goes to the largest percentage (first row if tied).
  */
 export function splitWholeAmount(total: number, splits: AgentSplit[]): { agentId: string; amount: number }[] {
   if (!splits.length) return [];
   const checked = validateAgentSplits(splits);
   if (!checked.ok) throw new Error(checked.message);
   if (splits.length === 1) return [{ agentId: splits[0].agentId, amount: total }];
+  const share = agentRateTotal(splits);
+  if (share <= 0) throw new Error("Agent percentages must be greater than 0.");
   const target = wholeMoney(total);
   const parts = splits.map((row, index) => {
-    const raw = total * (row.splitPercentage / 100);
+    const raw = total * (row.splitPercentage / share);
     return { agentId: row.agentId, amount: wholeMoney(raw), splitPercentage: row.splitPercentage, index };
   });
   const diff = target - parts.reduce((sum, part) => sum + part.amount, 0);
@@ -88,7 +93,7 @@ export function sameAgentSet(left: AgentSplit[], right: AgentSplit[]) {
   return key(left) === key(right);
 }
 
-/** Agents assigned to an ID at a moment, with their split %. Empty after an unassign until a new set is saved. */
+/** Agents assigned to an ID at a moment, with their actual %. Empty after an unassign until a new set is saved. */
 export function agentsAt(history: AgentAssignmentRow[], at: Date): AgentSplit[] {
   const rows = [...history].sort((left, right) => left.effectiveFrom.getTime() - right.effectiveFrom.getTime());
   const result: AgentSplit[] = [];

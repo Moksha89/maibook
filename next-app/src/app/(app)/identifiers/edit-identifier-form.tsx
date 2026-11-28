@@ -45,10 +45,7 @@ export function EditIdentifierForm({ identifier, companies = [] }: { identifier:
         <label className={modalLabel}>ID name<Input name="value" className={modalField} defaultValue={identifier.value} required /></label>
         <span />
         <label className={modalLabel}>Company<Select name="companyId" className={modalField} value={companyId} onChange={(event) => changeCompany(event.target.value)}><option value="">None</option>{companies.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</Select></label>
-        <div className="flex items-end gap-2">
-          <label className={`${modalLabel} min-w-0 flex-1`}>Type<div className="mt-0.5"><SegmentedToggle name="type" label="ID type" size="xs" className="w-fit" value={type} onChange={changeType} submitOnChange={false} options={[...identifierTypeOptions]} /></div></label>
-          <label className={`${modalLabel} w-[4.75rem] shrink-0`}>ID %<Input name="percentageRate" icon={null} className={modalField} type="number" min="0" max="100" step="0.0001" defaultValue={identifier.percentageRate} required={agentsOk.hasAgents} /></label>
-        </div>
+        <label className={modalLabel}>Type<div className="mt-0.5"><SegmentedToggle name="type" label="ID type" size="xs" className="w-fit" value={type} onChange={changeType} submitOnChange={false} options={[...identifierTypeOptions]} /></div></label>
         <IdentifierAgentRows agents={agentChoices} rows={agentRows} onChange={setAgentRows} />
       </div>
       {state.message ? <p className={`mt-2 text-xs ${state.status === "error" ? "text-[#b42318]" : "text-[#16794b]"}`}>{state.message}</p> : null}

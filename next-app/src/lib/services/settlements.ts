@@ -6,7 +6,7 @@ import { financialTransaction } from "@/lib/services/financial-transaction";
 import { calculateSettlement, decimal, effectiveAgentPercentage, payableShare, splitCreditDebit } from "@/lib/domain/finance";
 import { recalculateAgentBalances, recalculateNonAgentBalances } from "@/lib/services/ledger";
 import { identifierShareAt } from "@/lib/services/identifier-share-history";
-import { agentsAt, primaryAgentId, splitWholeAmount } from "@/lib/services/identifier-agent-assignment";
+import { agentRateTotal, agentsAt, primaryAgentId, splitWholeAmount } from "@/lib/services/identifier-agent-assignment";
 
 export interface PostSettlementInput {
   companyId: string;
@@ -58,7 +58,7 @@ export async function postSettlement(input: PostSettlementInput) {
       // SubAgent IDs keep their percentage with the sub agent; the agent is posted the remainder.
       // Use the ID % in force at post time so a later % edit cannot change this settlement.
       const shareHistory = await tx.identifierShareHistory.findMany({ where: { identifierId: identifier.id }, orderBy: { effectiveFrom: "asc" } });
-      const configuredPercentage = identifierShareAt(shareHistory, new Date(), Number(identifier.percentageRate.toString()));
+      const configuredPercentage = agentRateTotal(splits) || identifierShareAt(shareHistory, new Date(), Number(identifier.percentageRate.toString()));
       const appliedAgentPercentage = effectiveAgentPercentage(identifier.type, String(configuredPercentage));
       // The upline share comes from the ID's site upline %; an ID without a site falls back to the chosen upline's %.
       const uplinePercentage = identifier.site ? decimal(identifier.site.uplinePercentage.toString()) : decimal(upline?.percentageRate.toString() ?? 0);

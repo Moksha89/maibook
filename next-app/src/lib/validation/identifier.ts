@@ -6,5 +6,5 @@ export const identifierSchema = z.object({
   agentId: z.preprocess((value) => (value === "" || value == null ? undefined : value), z.string().uuid().optional()),
   value: z.string().trim().min(1, "ID name is required.").max(120, "ID name is too long.").regex(/^[^\s].*$/, "ID name cannot start with a space."),
   type: z.enum(["AGENT", "SUB_AGENT"]),
-  percentageRate: percent("Percentage rate"),
+  percentageRate: z.preprocess((value) => (value === "" || value == null ? undefined : value), percent("Percentage rate").optional()),
 });
