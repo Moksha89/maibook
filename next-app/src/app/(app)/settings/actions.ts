@@ -18,12 +18,13 @@ const settingsSchema = z.object({
   emailEnabled: z.coerce.boolean().default(false),
   smsEnabled: z.coerce.boolean().default(false),
   whatsappEnabled: z.coerce.boolean().default(false),
+  deviceLimitEnabled: z.coerce.boolean().default(false),
 });
 
 export async function updateSettingsAction(_: ActionState, formData: FormData): Promise<ActionState> {
   await requirePermission("settings.update");
   const raw = Object.fromEntries(formData);
-  const parsed = settingsSchema.safeParse({ ...raw, emailEnabled: formData.has("emailEnabled"), smsEnabled: formData.has("smsEnabled"), whatsappEnabled: formData.has("whatsappEnabled") });
+  const parsed = settingsSchema.safeParse({ ...raw, emailEnabled: formData.has("emailEnabled"), smsEnabled: formData.has("smsEnabled"), whatsappEnabled: formData.has("whatsappEnabled"), deviceLimitEnabled: formData.has("deviceLimitEnabled") });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message, fieldErrors: parsed.error.flatten().fieldErrors };
   const session = await requireSession();
   const values = [
@@ -33,6 +34,7 @@ export async function updateSettingsAction(_: ActionState, formData: FormData): 
     ["integrations.email", { enabled: parsed.data.emailEnabled, provider: "sendgrid" }],
     ["integrations.sms", { enabled: parsed.data.smsEnabled, provider: "twilio" }],
     ["integrations.whatsapp", { enabled: parsed.data.whatsappEnabled, provider: "private-bridge" }],
+    ["security.deviceLimit", { enabled: parsed.data.deviceLimitEnabled }],
   ] as const;
   await db.$transaction([
     ...values.map(([key, value]) => db.applicationSetting.upsert({ where: { key }, update: { value, updatedById: session.userId }, create: { key, value, updatedById: session.userId } })),

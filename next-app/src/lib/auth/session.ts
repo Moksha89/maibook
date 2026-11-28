@@ -7,6 +7,7 @@ import { unauthorized } from "next/navigation";
 
 import { db } from "@/lib/db";
 import { hashToken, randomToken } from "./crypto";
+import { DEVICE_LIMIT_SETTING_KEY, isDeviceLimitEnabled } from "./device-limit";
 
 const SESSION_COOKIE = "ibook_session";
 const DEVICE_COOKIE = "ibook_device";
@@ -36,10 +37,13 @@ export async function createSession(userId: string, maxDevices: number, context:
       });
     }
 
-    const activeDeviceCount = await tx.deviceRegistration.count({
-      where: { userId, revokedAt: null },
-    });
-    if (activeDeviceCount >= maxDevices) throw new Error("DEVICE_LIMIT");
+    const limitSetting = await tx.applicationSetting.findUnique({ where: { key: DEVICE_LIMIT_SETTING_KEY } });
+    if (isDeviceLimitEnabled(limitSetting?.value)) {
+      const activeDeviceCount = await tx.deviceRegistration.count({
+        where: { userId, revokedAt: null },
+      });
+      if (activeDeviceCount >= maxDevices) throw new Error("DEVICE_LIMIT");
+    }
 
     return tx.deviceRegistration.create({
       data: { userId, fingerprint, name: context.userAgent.slice(0, 160) },
